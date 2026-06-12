@@ -1,0 +1,13 @@
+[project]
+name = "langgraph-code-review"
+version = "0.1.0"
+description = "LangGraph agent that reviews Python code with reflexive critic"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.0.30",
+    "langchain-openai>=0.1.5",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.setuptools]
+packages = ["."]
