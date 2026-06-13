@@ -1,39 +1,47 @@
-from typing import Dict
+from typing import Dict, Any
+
 from langgraph.graph import StateGraph, END
-from state import CodeReviewState
-from nodes.draft_review import draft_review
-from nodes.reflect import reflect
-from nodes.rewrite import rewrite
 
+from compare_state import CompareState
+from nodes import plan_criteria, research_entity, build_table, verdict
 
-def build_graph() -> StateGraph:
-    """Construct the LangGraph according to the specification.
+# ---------------------------------------------------------------------------
+# Build the LangGraph workflow.
+# ---------------------------------------------------------------------------
 
-    Returns a ``StateGraph`` instance ready to be compiled.
-    """
-    graph = StateGraph(CodeReviewState)
+def create_comparison_graph() -> StateGraph:
+    graph = StateGraph(CompareState)
 
-    # Register nodes
-    graph.add_node("draft_review", draft_review)
-    graph.add_node("reflect", reflect)
-    graph.add_node("rewrite", rewrite)
+    # Register node functions.
+    graph.add_node("plan_criteria", plan_criteria)
+    graph.add_node("research_entity", research_entity)
+    graph.add_node("build_table", build_table)
+    graph.add_node("verdict", verdict)
 
-    # Define edges
-    graph.add_edge("__start__", "draft_review")
-    graph.add_edge("draft_review", "reflect")
+    # Define the edges.
+    graph.add_edge("START", "plan_criteria")
+    graph.add_edge("plan_criteria", "research_entity")
 
-    # Conditional routing from reflect
-    def route(state: Dict) -> str:
-        if state["verdict"] == "ok":
-            return END
-        if state["verdict"] == "needs_revision" and state["round"] < state["max_rounds"]:
-            return "rewrite"
-        # Either max rounds reached or unknown verdict – terminate
-        return END
+    # Conditional edge for the research loop.
+    def more_pairs(state: Dict[str, Any]) -> str:
+        entities = state["entities"]
+        criteria = state["criteria"]
+        total = len(entities) * len(criteria)
+        return "research_entity" if state.get("current_pair", 0) < total else "build_table"
 
-    graph.add_conditional_edges("reflect", route, {"rewrite": "rewrite", END: END})
-    graph.add_edge("rewrite", "reflect")
+    graph.add_conditional_edges(
+        "research_entity",
+        more_pairs,
+        {
+            "research_entity": "research_entity",  # continue looping
+            "build_table": "build_table",
+        },
+    )
 
-    # Set default values for fields that may be missing in the initial dict
-    graph.set_entry_point("draft_review")
+    graph.add_edge("build_table", "verdict")
+    graph.add_edge("verdict", END)
+
     return graph
+
+# Compile the graph for external use.
+comparison_graph = create_comparison_graph()

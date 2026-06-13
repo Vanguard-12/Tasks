@@ -1,4 +1,5 @@
 langgraph>=0.0.30
 langchain-openai>=0.0.8
-langchain-ollama>=0.0.2
+langchain-tavily>=0.0.2
+tavily-python>=0.2.0
 python-dotenv>=1.0.0

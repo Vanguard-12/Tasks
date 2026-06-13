@@ -1,112 +1,173 @@
 import os
 import json
-from typing import Dict, Any
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
-from dotenv import load_dotenv
+import ast
+from typing import Dict, Any, List
 
-# Load environment variables (API keys, etc.)
-load_dotenv()
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from tavily import TavilyClient
 
-# Choose LLM – OpenAI if key present, otherwise Ollama (via OpenAI compatible endpoint)
-if os.getenv("OPENAI_API_KEY"):
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.7)
-else:
-    # Ollama – we rely on the OpenAI compatible endpoint
-    llm = ChatOpenAI(base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-                     model="llama3", temperature=0.7)
+# ---------------------------------------------------------------------------
+# Helper utilities
+# ---------------------------------------------------------------------------
 
+def _load_llm() -> ChatOpenAI:
+    """Create a ChatOpenAI instance.
 
-def draft_review(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate an initial code review (3‑6 bullet points).
-
-    The function receives the current state, expects ``code`` to be present and
-    returns a dict with the new ``draft_review``.
+    The function reads ``OPENAI_API_KEY`` from the environment (handled by
+    ``python-dotenv`` in the CLI).  Temperature is set low for deterministic
+    output when generating criteria and the final verdict.
     """
-    code = state.get("code", "")
-    system_prompt = (
-        "You are a senior Python developer. Review the following function and "
-        "provide a concise review consisting of 3‑6 bullet points. Focus on "
-        "PEP8 style, type hints, edge‑case handling and naming. Do NOT suggest "
-        "any changes yet – just list observations."
-    )
-    user_prompt = f"```python\n{code}\n```"
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ])
-    draft = response.content.strip()
-    return {"draft_review": draft}
+    return ChatOpenAI(temperature=0.2)
 
 
-def reflect(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Critic node – score the draft review on four criteria.
+def _parse_list_response(text: str) -> List[str]:
+    """Parse a LLM response that should contain a JSON/YAML list.
 
-    Returns ``criteria_scores`` (dict), ``weakest_criterion`` (str), ``verdict``
-    ("ok" or "needs_revision").
+    The LLM is prompted to return a pure JSON list, but we defensively try
+    ``json.loads`` first and fall back to ``ast.literal_eval``.
     """
-    draft = state.get("draft_review", "")
-    system_prompt = (
-        "You are a code‑review critic. Evaluate the following review and "
-        "provide a JSON object with the following keys: \n"
-        "  - scores: an object with keys 'pep8', 'type_hints', 'edge_cases', "
-        "    'naming' each having an integer 0‑10,\n"
-        "  - weakest_criterion: the key with the lowest score,\n"
-        "  - verdict: 'ok' if all scores are >=7, otherwise 'needs_revision'.\n"
-        "Return ONLY the JSON object, no extra text."
-    )
-    user_prompt = f"Review to evaluate:\n{draft}"
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ])
     try:
-        data = json.loads(response.content)
-    except json.JSONDecodeError:
-        # Fallback – if the model adds extra text, try to extract the JSON block
-        import re
-        match = re.search(r"\{.*\}", response.content, re.DOTALL)
-        if match:
-            data = json.loads(match.group(0))
-        else:
-            # Very defensive default – treat as needs revision with low scores
-            data = {
-                "scores": {"pep8": 0, "type_hints": 0, "edge_cases": 0, "naming": 0},
-                "weakest_criterion": "pep8",
-                "verdict": "needs_revision",
-            }
-    scores: Dict[str, int] = data.get("scores", {})
-    # Determine weakest criterion (first with minimal score if tie)
-    if scores:
-        min_score = min(scores.values())
-        weakest = next(k for k, v in scores.items() if v == min_score)
-    else:
-        weakest = "pep8"
-    verdict = data.get("verdict", "needs_revision")
+        return json.loads(text)
+    except Exception:
+        try:
+            return ast.literal_eval(text)
+        except Exception:
+            # As a last resort split on newlines/comma
+            return [item.strip().strip('-').strip() for item in text.split('\n') if item.strip()]
+
+# ---------------------------------------------------------------------------
+# Node implementations – each receives the current state dict and returns a
+# dict with the updates that should be merged back into the graph state.
+# ---------------------------------------------------------------------------
+
+def plan_criteria(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate 3‑5 comparison criteria based on the supplied entities.
+
+    The LLM is asked to output a JSON list.  The resulting list is stored in
+    ``state["criteria"]`` and an empty ``findings`` structure is prepared.
+    """
+    entities = state["entities"]
+    prompt = (
+        "You are an assistant that helps to compare several technologies. "
+        "Given the following three entities, generate a concise list of 3 to 5 "
+        "criteria that are useful for comparing them. Return the criteria as a "
+        "JSON array of short strings (no extra text).\n\n"
+        "Entities: {entities}\n"
+    )
+    tmpl = PromptTemplate.from_template(prompt)
+    llm = _load_llm()
+    chain_input = tmpl.format_prompt(entities=", ".join(entities)).to_messages()
+    response = llm.invoke(chain_input)
+    criteria = _parse_list_response(response.content)
+
+    # Initialise findings dict – each entity gets a list with placeholders for each criterion
+    findings: Dict[str, List[str]] = {entity: ["" for _ in criteria] for entity in entities}
+
     return {
-        "criteria_scores": scores,
-        "weakest_criterion": weakest,
-        "verdict": verdict,
+        "criteria": criteria,
+        "findings": findings,
+        "current_pair": 0,  # start at the first pair
     }
 
 
-def rewrite(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Rewrite the part of the draft review that corresponds to the weakest criterion.
+def research_entity(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Perform a Tavily search for the current (entity, criterion) pair.
 
-    The node increments ``round`` and returns an updated ``draft_review``.
+    The function updates ``findings`` with a short note and increments the
+    ``current_pair`` counter.
     """
-    draft = state.get("draft_review", "")
-    weakest = state.get("weakest_criterion", "pep8")
-    round_no = state.get("round", 0) + 1
-    system_prompt = (
-        "You are a helpful assistant that improves a code‑review. The review "
-        "contains several bullet points. Rewrite ONLY the bullet point(s) that "
-        f"address the criterion '{weakest}'. Keep the rest of the review unchanged."
+    entities: List[str] = state["entities"]
+    criteria: List[str] = state["criteria"]
+    findings: Dict[str, List[str]] = state["findings"]
+    pair_index: int = state["current_pair"]
+
+    total_pairs = len(entities) * len(criteria)
+    if pair_index >= total_pairs:
+        # Nothing to do – the graph will move on.
+        return {}
+
+    # Determine which entity and which criterion we are processing.
+    entity_idx = pair_index // len(criteria)
+    criterion_idx = pair_index % len(criteria)
+    entity = entities[entity_idx]
+    criterion = criteria[criterion_idx]
+
+    # Build a concise search query.
+    query = f"{entity} {criterion}"  # simple concatenation works well for most cases
+
+    # Initialise Tavily client.
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        raise RuntimeError("TAVILY_API_KEY not set in environment")
+    client = TavilyClient(api_key=api_key)
+
+    # Perform the search – we ask for a few results and pick the first useful snippet.
+    try:
+        results = client.search(query, max_results=5)
+    except Exception as exc:
+        # In case of network/API errors we store a placeholder note.
+        note = f"Search failed: {exc}"
+    else:
+        # Extract a short description from the first result.
+        if results and isinstance(results, list) and "snippet" in results[0]:
+            snippet = results[0]["snippet"].strip()
+            note = snippet if snippet else results[0].get("title", "No relevant info found")
+        else:
+            note = "No results returned"
+
+    # Store the note in the correct cell.
+    findings[entity][criterion_idx] = note
+
+    # Increment the pair index for the next iteration.
+    new_pair = pair_index + 1
+
+    return {
+        "findings": findings,
+        "current_pair": new_pair,
+    }
+
+
+def build_table(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a markdown table from ``criteria`` and ``findings``.
+
+    Rows correspond to criteria, columns to entities.  Cells contain the short
+    notes collected by ``research_entity``.
+    """
+    entities: List[str] = state["entities"]
+    criteria: List[str] = state["criteria"]
+    findings: Dict[str, List[str]] = state["findings"]
+
+    # Header row
+    header = "| Criterion | " + " | ".join(entities) + " |"
+    separator = "|---" + "|---" * len(entities) + "|"
+    rows = [header, separator]
+
+    for idx, crit in enumerate(criteria):
+        cells = [findings[entity][idx].replace("|", "\\|") for entity in entities]
+        row = f"| {crit} | " + " | ".join(cells) + " |"
+        rows.append(row)
+
+    table_md = "\n".join(rows)
+    return {"final_table": table_md}
+
+
+def verdict(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Ask the LLM to produce a short recommendation based on the table.
+    """
+    table = state.get("final_table", "")
+    if not table:
+        return {"verdict": "No table generated – cannot produce verdict."}
+
+    prompt = (
+        "You are an expert analyst. Based on the following comparison table, "
+        "write a concise (2‑4 sentences) recommendation indicating which of the "
+        "entities is best suited for which typical use‑case. Do not repeat the table, "
+        "just give the verdict.\n\n{table}\n"
     )
-    user_prompt = f"Current review:\n{draft}"
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ])
-    new_draft = response.content.strip()
-    return {"draft_review": new_draft, "round": round_no}
+    tmpl = PromptTemplate.from_template(prompt)
+    llm = _load_llm()
+    chain_input = tmpl.format_prompt(table=table).to_messages()
+    response = llm.invoke(chain_input)
+    verdict_text = response.content.strip()
+    return {"verdict": verdict_text}
