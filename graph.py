@@ -1,17 +1,15 @@
-from typing import Dict, Any
+from typing import Dict
 from langgraph.graph import StateGraph, END
-from review_state import CodeReviewState
-from nodes import draft_review, reflect, rewrite
+from state import CodeReviewState
+from nodes.draft_review import draft_review
+from nodes.reflect import reflect
+from nodes.rewrite import rewrite
 
 
 def build_graph() -> StateGraph:
-    """Construct the LangGraph for the code‑review workflow.
+    """Construct the LangGraph according to the specification.
 
-    The graph follows the specification:
-        START → draft_review → reflect
-        if verdict == "ok" → END
-        if verdict == "needs_revision" and round < max_rounds → rewrite → reflect
-        else → END
+    Returns a ``StateGraph`` instance ready to be compiled.
     """
     graph = StateGraph(CodeReviewState)
 
@@ -21,32 +19,21 @@ def build_graph() -> StateGraph:
     graph.add_node("rewrite", rewrite)
 
     # Define edges
-    graph.add_edge("START", "draft_review")
+    graph.add_edge("__start__", "draft_review")
     graph.add_edge("draft_review", "reflect")
 
-    # Conditional edge after reflect
-    def decide_next(state: Dict[str, Any]):
-        verdict = state.get("verdict")
-        current_round = state.get("round", 0)
-        max_rounds = state.get("max_rounds", 2)
-        if verdict == "ok":
-            return "END"
-        if verdict == "needs_revision" and current_round < max_rounds:
+    # Conditional routing from reflect
+    def route(state: Dict) -> str:
+        if state["verdict"] == "ok":
+            return END
+        if state["verdict"] == "needs_revision" and state["round"] < state["max_rounds"]:
             return "rewrite"
-        return "END"
+        # Either max rounds reached or unknown verdict – terminate
+        return END
 
-    graph.add_conditional_edges(
-        "reflect",
-        decide_next,
-        {
-            "rewrite": "rewrite",
-            "END": END,
-        },
-    )
-
-    # After rewrite go back to reflect
+    graph.add_conditional_edges("reflect", route, {"rewrite": "rewrite", END: END})
     graph.add_edge("rewrite", "reflect")
 
-    # Set default values for the initial state (will be merged with user‑provided state)
+    # Set default values for fields that may be missing in the initial dict
     graph.set_entry_point("draft_review")
     return graph

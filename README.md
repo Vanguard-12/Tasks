@@ -1,90 +1,93 @@
-# LangGraph Code‑Review with Reflexive Critic
+# LangGraph Code Review with Reflexive Critic
 
-This repository contains a **LangGraph** based agent that reviews a Python function, evaluates the review against four concrete criteria (PEP8, type‑hints, edge cases, naming) and iteratively rewrites the weakest part of the review until the critic is satisfied or a maximum number of rounds is reached.
+## Overview
 
-## Features
+This repository demonstrates a **LangGraph** workflow that performs a code review of a Python function, evaluates the review on four concrete criteria (PEP8, type‑hints, edge cases, naming), and iteratively rewrites the weakest part of the review until the critic is satisfied or a configurable number of rounds is reached.
 
-* **State model** – `CodeReviewState` stores the original code, the draft review, per‑criterion scores, the weakest criterion, a verdict, and round counters.
-* **Three nodes**
-  * `draft_review` – generates an initial 3‑6 bullet‑point review.
-  * `reflect` – a critic that scores the draft on the four criteria and decides whether a revision is needed.
-  * `rewrite` – rewrites only the part of the review that corresponds to the weakest criterion.
-* **Loop** – `rewrite → reflect` repeats until the verdict is `ok` or `max_rounds` (default 2) is hit.
-* **CLI demo** – runs the graph on a sample function and prints the whole interaction.
+The workflow consists of three nodes:
+
+1. **draft_review** – generates an initial 3‑6 bullet review of the supplied code.
+2. **reflect** – a critic LLM scores the review on the four criteria, picks the lowest‑scoring criterion, and decides whether the review is good enough (`"ok"`) or needs another revision (`"needs_revision"`).
+3. **rewrite** – improves only the portion of the review that corresponds to the weakest criterion and increments the round counter.
+
+The graph loops `reflect → rewrite → reflect` until the verdict is `"ok"` or the maximum number of rounds (`max_rounds`, default = 2) is exhausted.
+
+## Project Structure
+
+```
+.
+├─ app.py               # entry point – builds the graph and runs the demo
+├─ state.py             # TypedDict defining the workflow state
+├─ utils.py             # helpers for env loading and LLM client creation
+├─ nodes/
+│   ├─ draft_review.py
+│   ├─ reflect.py
+│   └─ rewrite.py
+├─ graph.py             # LangGraph construction
+├─ cli.py               # tiny CLI wrapper (optional)
+├─ requirements.txt
+├─ .env.example
+└─ README.md
+```
 
 ## Setup
 
 ```bash
-# 1. Clone the repo
-git clone <repo‑url>
-cd <repo‑directory>
-
-# 2. Create a virtual environment and install dependencies
+# 1. Create a virtual environment (optional but recommended)
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Configure API credentials
+# 3. Copy the example env file and fill in your credentials
 cp .env.example .env
-#   - For OpenAI: set OPENAI_API_KEY
-#   - For a local Ollama model: set OLLAMA_BASE_URL (e.g. http://localhost:11434/v1)
-
-# 4. Run the demo
-python cli.py
+# Edit .env – set either OPENAI_API_KEY or OLLAMA_BASE_URL
 ```
 
-## Expected output (truncated for brevity)
+## Running the Demo
+
+```bash
+python app.py
+```
+
+You should see a step‑by‑step log similar to:
 
 ```
-=== CODE TO REVIEW ===
+--- Draft Review ---
+* The function is simple and correct …
+* Missing type hints …
+* Naming could be clearer …
 
-def sort_numbers(arr):
-    """Return a sorted list of numbers."""
-    return sorted(arr)
-
-=== INITIAL DRAFT REVIEW ===
-
-- The function is simple and correctly uses ``sorted``.
-- No type hints are provided for the parameter or return value.
-- The name ``sort_numbers`` is clear.
-- No explicit handling of non‑list inputs or empty lists.
-- PEP8 formatting looks fine.
-
-=== CRITIC SCORES ===
-{
-  "pep8": 9,
-  "type_hints": 3,
-  "edge_cases": 5,
-  "naming": 8
-}
+--- Critic Scores ---
+pep8: 8, type_hints: 3, edge_cases: 7, naming: 6
 Weakest criterion: type_hints
 Verdict: needs_revision
 
-=== REWRITTEN REVIEW (after 1 round(s)) ===
+--- Rewrite (type_hints) ---
+* Added type hints …
 
-- The function is simple and correctly uses ``sorted``.
-- **Add type hints**: ``def sort_numbers(arr: list[int]) -> list[int]:``.
-- The name ``sort_numbers`` is clear.
-- No explicit handling of non‑list inputs or empty lists.
-- PEP8 formatting looks fine.
-
-=== UPDATED SCORES ===
-{
-  "pep8": 9,
-  "type_hints": 8,
-  "edge_cases": 5,
-  "naming": 8
-}
+--- New Scores ---
+pep8: 9, type_hints: 8, edge_cases: 7, naming: 6
+Verdict: ok
 ```
 
-The critic upgraded the *type_hints* score after the rewrite, and because all scores are now ≥ 7 the verdict becomes `ok` and the graph terminates.
+If the critic still asks for a revision and the round counter is below `max_rounds`, another rewrite will be performed.
 
-## Customisation
+## How It Works
 
-* **Change the maximum number of rounds** – set the environment variable `MAX_ROUNDS` before running the CLI.
-* **Swap the LLM** – the code automatically picks OpenAI when `OPENAI_API_KEY` is present, otherwise it falls back to an Ollama endpoint.
-* **Provide your own code** – modify `SAMPLE_CODE` in `cli.py` or build a small wrapper that reads a file.
+* **state.py** – defines `CodeReviewState` (TypedDict) with fields required by the spec.
+* **utils.py** – loads environment variables and creates a LangChain chat model (`ChatOpenAI` or `ChatOllama`).
+* **nodes/** – each file implements a LangGraph node function that receives the current state, calls the LLM, updates the state, and prints a short log.
+* **graph.py** – builds a `StateGraph` with conditional edges based on `verdict` and `round`.
+* **app.py** – prepares the initial state (sample function `sort_numbers`), compiles the graph, runs it, and prints the final outcome.
 
-## License
+## Extending the Project
 
-MIT License – feel free to adapt and extend.
+* Swap the LLM provider by adjusting `utils.get_llm()`.
+* Add more criteria or richer prompts.
+* Persist the review history to a file or database.
+
+---
+
+*Happy coding!*
