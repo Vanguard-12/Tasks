@@ -1,92 +1,90 @@
-# LangGraph Comparative Review Demo (Tavily)
+# Structured Output – Discriminated Union Example
 
-This repository contains a small **LangGraph**‑based agent that, given three
-entities (technologies, products, approaches, …), automatically:
+This repository demonstrates how to turn a raw log containing heterogeneous
+lines into a list of **typed** events using **Pydantic v2** discriminated unions
+and **LangChain** structured output.
 
-1. **Generates** 3‑5 comparison criteria using an LLM.
-2. **Researches** each *entity × criterion* pair with a real web search via the
-   **Tavily** API.
-3. **Aggregates** the short notes into a markdown table (rows = criteria,
-   columns = entities).
-4. **Produces** a concise verdict – a 2‑4 sentence recommendation that tells
-   which entity is best for which typical use‑case.
+## Features
 
-The whole workflow is expressed as a LangGraph state machine with a looping
-node that iterates over all entity‑criterion combinations.
+- Two concrete event models (`HttpOkEvent` and `HttpErrorEvent`) with a `kind`
+  discriminator.
+- `ApiEvent` declared as a discriminated union (`Annotated[Union[...],
+  Field(discriminator="kind")]`).
+- Log splitting on blank lines or `---` delimiters.
+- LLM‑driven parsing via `ChatOpenAI.with_structured_output` – no manual
+  `json.loads` or regex.
+- Simple CLI (`cli.py`) that prints each parsed model and renders a nice table
+  using **rich**.
+- Example log is bundled; you can also provide your own file with `--log`.
 
----
-
-## Quickstart
+## Setup
 
 ```bash
-# 1. Clone the repo and cd into it
+# Clone the repo
 git clone <repo-url>
-cd <repo-directory>
+cd <repo-dir>
 
-# 2. Install dependencies (Python 3.10+ required)
-python -m pip install -r requirements.txt
+# Create a virtual environment (optional but recommended)
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# 3. Create a .env file from the example and add your keys
+# Install dependencies
+pip install -U pip
+pip install -r requirements.txt
+
+# Configure the OpenAI key
 cp .env.example .env
-# edit .env and set TAVILY_API_KEY and OPENAI_API_KEY
-
-# 4. Run the demo (default entities: Chroma, FAISS, Qdrant)
-python -m cli
+# Edit .env and replace the placeholder with your real key
 ```
 
-### Custom entities
+> **Note**: The code uses the `gpt-4o-mini` model. You can change the model name
+> in `parser.py` if you prefer another one.
 
-You can compare any three items of your choice:
+## Usage
+
+Run the CLI with the built‑in example log:
 
 ```bash
-python -m cli --custom "Entity A" "Entity B" "Entity C"
+python cli.py
 ```
 
----
+Provide a custom log file:
 
-## How it works
-
-### State model (`compare_state.py`)
-```python
-class CompareState(TypedDict):
-    entities: List[str]          # three names to compare
-    criteria: List[str]          # generated comparison criteria
-    findings: Dict[str, List[str]]  # entity -> list of notes (one per criterion)
-    current_pair: int            # index of the next (entity, criterion) pair
-    final_table: Optional[str]
-    verdict: Optional[str]
+```bash
+python cli.py --log path/to/your.log
 ```
 
-### Nodes (`nodes.py`)
-| Node | Purpose |
-|------|---------|
-| `plan_criteria` | Calls an LLM (OpenAI) to produce a JSON list of criteria. |
-| `research_entity` | For the current pair builds a query, calls **Tavily**, extracts a short snippet and stores it. |
-| `build_table` | Turns the collected notes into a markdown table. |
-| `verdict` | Sends the table back to the LLM and receives a short recommendation. |
+The output consists of two parts:
 
-### Graph (`graph.py`)
-The graph is a simple state machine:
-```
-START → plan_criteria → research_entity (loop) → build_table → verdict → END
-```
-The loop continues while ``current_pair < len(entities) * len(criteria)``.
+1. A raw ``model_dump()`` representation of each parsed event.
+2. A formatted table showing the common fields (`kind`, `path`, `status`) and the
+   branch‑specific fields (`duration_ms` for successful requests, `error_message`
+   for errors).
 
----
+## Project Structure
 
-## Project structure
 ```
-compare_state.py   # TypedDict definition
-nodes.py           # All node functions
-graph.py           # LangGraph assembly
-cli.py             # Command‑line interface
-requirements.txt   # Dependencies
-.env.example       # Example environment file
-README.md          # This file
+├─ models.py          # Pydantic discriminated union definitions
+├─ parser.py          # Log splitting and LLM‑based parsing logic
+├─ cli.py             # Command‑line interface
+├─ .env.example       # Template for environment variables
+├─ requirements.txt   # Python dependencies
+└─ README.md          # This file
 ```
 
----
+## Testing (optional)
+
+A minimal test suite lives in the `tests/` directory.  To run the tests:
+
+```bash
+pip install pytest
+pytest -q
+```
+
+The tests verify that the union discriminates correctly and that the log
+splitting works as expected.  They do **not** hit the OpenAI API – the parsing
+logic is exercised with a mocked LLM.
 
 ## License
 
-This demo is provided under the MIT License.
+This example is provided under the MIT License.
