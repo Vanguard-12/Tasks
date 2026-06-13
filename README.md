@@ -1,90 +1,87 @@
-# Structured Output – Discriminated Union Example
+# Research Brief Agent (LangGraph)
 
-This repository demonstrates how to turn a raw log containing heterogeneous
-lines into a list of **typed** events using **Pydantic v2** discriminated unions
-and **LangChain** structured output.
+## Overview
 
-## Features
+This repository contains a **LangGraph**‑based agent that builds a short research brief (about half a page to one page) for a student‑provided topic.
 
-- Two concrete event models (`HttpOkEvent` and `HttpErrorEvent`) with a `kind`
-  discriminator.
-- `ApiEvent` declared as a discriminated union (`Annotated[Union[...],
-  Field(discriminator="kind")]`).
-- Log splitting on blank lines or `---` delimiters.
-- LLM‑driven parsing via `ChatOpenAI.with_structured_output` – no manual
-  `json.loads` or regex.
-- Simple CLI (`cli.py`) that prints each parsed model and renders a nice table
-  using **rich**.
-- Example log is bundled; you can also provide your own file with `--log`.
+The workflow is:
+
+1. **Outline generation** – an LLM creates a 4‑5 item outline.
+2. **Iterative research** – for each outline point the agent makes **one** Tavily web‑search call, summarises the results into a concise note (5‑8 sentences).
+3. **Synthesis** – all notes are combined into a coherent brief with headings.
+
+The implementation follows the specification from the assignment "Повторный экзамен: Исследовательский бриф (план → шаги → сводка)".
+
+---
 
 ## Setup
 
 ```bash
-# Clone the repo
+# Clone the repository
 git clone <repo-url>
-cd <repo-dir>
+cd <repo-directory>
 
 # Create a virtual environment (optional but recommended)
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -U pip
 pip install -r requirements.txt
+```
 
-# Configure the OpenAI key
+### Environment variables
+
+Create a copy of the example file and fill in your keys:
+
+```bash
 cp .env.example .env
-# Edit .env and replace the placeholder with your real key
 ```
 
-> **Note**: The code uses the `gpt-4o-mini` model. You can change the model name
-> in `parser.py` if you prefer another one.
+The script expects the following variables:
 
-## Usage
+- `OPENAI_API_KEY` – API key for the OpenAI model used for generation and summarisation.
+- `OPENAI_MODEL` *(optional)* – model name (default: `gpt-4o-mini`).
+- `TAVILY_API_KEY` – API key for Tavily web‑search.
 
-Run the CLI with the built‑in example log:
+---
+
+## Running the agent
 
 ```bash
-python cli.py
+python brief_agent.py "Your custom research topic"
 ```
 
-Provide a custom log file:
-
-```bash
-python cli.py --log path/to/your.log
-```
-
-The output consists of two parts:
-
-1. A raw ``model_dump()`` representation of each parsed event.
-2. A formatted table showing the common fields (`kind`, `path`, `status`) and the
-   branch‑specific fields (`duration_ms` for successful requests, `error_message`
-   for errors).
-
-## Project Structure
+If no topic is supplied, the default topic from the assignment is used:
 
 ```
-├─ models.py          # Pydantic discriminated union definitions
-├─ parser.py          # Log splitting and LLM‑based parsing logic
-├─ cli.py             # Command‑line interface
-├─ .env.example       # Template for environment variables
-├─ requirements.txt   # Python dependencies
-└─ README.md          # This file
+Как студенту безопасно подключать MCP к LangChain
 ```
 
-## Testing (optional)
+The script prints:
 
-A minimal test suite lives in the `tests/` directory.  To run the tests:
+- The generated outline.
+- Each research step note prefixed with `[Step i]`.
+- The final synthesized brief.
 
-```bash
-pip install pytest
-pytest -q
-```
+---
 
-The tests verify that the union discriminates correctly and that the log
-splitting works as expected.  They do **not** hit the OpenAI API – the parsing
-logic is exercised with a mocked LLM.
+## Files
+
+- `brief_agent.py` – main script containing the state definition, graph construction, node implementations and a CLI entry point.
+- `requirements.txt` – Python dependencies.
+- `README.md` – this documentation.
+- `.env.example` – template for required environment variables.
+
+---
+
+## Notes & Limitations
+
+- The agent uses **real** Tavily search results; no fabricated references are introduced.
+- If the LLM or Tavily APIs are unavailable, the script exits with a clear error message.
+- The outline parsing uses a simple ``eval`` on the LLM response; the prompt forces a JSON‑compatible list to keep parsing safe.
+
+---
 
 ## License
 
-This example is provided under the MIT License.
+MIT License (c) 2026

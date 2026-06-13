@@ -1,4 +1,20 @@
 import os
+from typing import Any
+
+
+def get_env_var(name: str, default: Any = None) -> Any:
+    """Utility to fetch an environment variable with a helpful error.
+
+    Args:
+        name: Name of the variable.
+        default: Value to return if the variable is missing. If ``None`` and the
+            variable is missing, a ``RuntimeError`` is raised.
+    """
+    value = os.getenv(name, default)
+    if value is None:
+        raise RuntimeError(f"Environment variable '{name}' is required but not set.")
+    return value
+import os
 import json
 from typing import Any
 from dotenv import load_dotenv
