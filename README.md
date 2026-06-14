@@ -1,3 +1,58 @@
+# RAG Agent with Qdrant & Ollama
+
+This repository contains a minimal example of a **Retrieval‑Augmented Generation (RAG)** agent built with:
+
+- **Qdrant** – vector database for storing embeddings.
+- **Ollama** – local LLM (`llama3`) and embedding model (`nomic-embed-text`).
+- **LangChain** – tools, agents and utilities.
+
+## Features
+
+- **Two LangChain tools**
+  - `search_knowledge_base(query, max_results)` – semantic search in Qdrant.
+  - `add_to_knowledge_base(content, title)` – chunk, embed and store a document.
+- **Chunking** using `RecursiveCharacterTextSplitter`.
+- **Agent** that can automatically call the tools via function‑calling.
+- **CLI** (`rag_cli.py`) with commands:
+  - `/add <title>` – interactively add a document.
+  - `/search <query>` – direct search.
+  - normal text – sent to the agent, which may invoke the tools.
+- **Init script** (`rag_init_client.py`) to bulk‑load a directory of `.txt`/`.md` files.
+
+## Quick start
+
+```bash
+# 1. Install Ollama models (requires Ollama to be running)
+ollama pull llama3
+ollama pull nomic-embed-text
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. (Optional) Start Qdrant locally via Docker
+docker run -d --name qdrant -p 6333:6333 qdrant/qdrant
+
+# 4. Load initial documents
+python rag_init_client.py --source_dir ./documents
+
+# 5. Run the interactive CLI
+python rag_cli.py
+```
+
+## Configuration
+
+Edit `config.yaml` if you need to point to a different Qdrant host/port or use other model names.
+
+## Project structure
+
+- `rag_vector_store.py` – Qdrant client wrapper.
+- `rag_chunker.py` – text splitter.
+- `rag_tools.py` – LangChain tools.
+- `rag_agent.py` – agent creation.
+- `rag_init_client.py` – bulk document loader.
+- `rag_cli.py` – interactive command‑line interface.
+
+Feel free to extend the example (e.g., add PDF support, richer metadata, or a web UI).
 # Interactive LLM‑Powered Adventure Game
 
 This repository contains a minimal **choose‑your‑own‑adventure** console application that demonstrates

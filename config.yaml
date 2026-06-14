@@ -1,0 +1,7 @@
+qdrant:
+  host: "localhost"
+  port: 6333
+  collection_name: "rag_collection"
+ollama:
+  embedding_model: "nomic-embed-text"
+  llm_model: "llama3"

@@ -1,5 +1,5 @@
-langchain>=0.2.0
-langgraph>=0.0.41
-python-dotenv>=1.0.0
-openai>=1.30.0
-rich>=13.7.0
+langchain
+langchain-ollama
+langchain-qdrant
+qdrant-client
+python-dotenv
