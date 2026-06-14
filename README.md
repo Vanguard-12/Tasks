@@ -1,185 +1,88 @@
-# Structured Output – Union Events Demo
-
-This repository contains a small command‑line tool that demonstrates **structured
-output with a discriminated Union** using **Pydantic v2** and **LangChain ≥1.0**.
-
-## What it does
-
-* Takes a raw HTTP log (multiple lines, each possibly of a different format).
-* Sends each line to an LLM (OpenAI Chat model) with `with_structured_output` so the
-  model returns JSON that matches one of the two Pydantic schemas:
-  * `HttpOkEvent` – successful request (`status` = 200).
-  * `HttpErrorEvent` – error request (4xx/5xx).
-* The returned JSON is validated against a **discriminated Union** (`ApiEvent`).
-* The CLI prints a tidy table showing the parsed events.
-
-## Project structure
-
-```
-├─ main.py          # CLI entry point
-├─ models.py        # Pydantic models + discriminated Union
-├─ parser.py        # Splitting log, invoking LLM, validation
-├─ requirements.txt # Dependencies
-├─ README.md        # This file
-└─ .env (optional) # Store your OpenAI API key
-```
-
-## Setup
-
-1. **Clone the repository** and navigate into it.
-2. **Create a virtual environment** (optional but recommended):
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   ```
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **Provide an OpenAI API key** (or configure an Ollama endpoint).  The simplest
-   way is to create a `.env` file in the project root:
-   ```dotenv
-   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   ```
-   The `python-dotenv` package automatically loads this file.
-
-## Usage
-
-Run the CLI without arguments to parse the built‑in example log:
-
-```bash
-python main.py
-```
-
-You can also supply your own log text via the `--log` flag:
-
-```bash
-python main.py --log "GET /api/users 200 duration=120ms\nPOST /api/orders 500 error='DB failure'"
-```
-
-### Expected output (example)
-
-```
-| kind   | path          | status   | duration_ms   | error_message          |
-|--------|---------------|----------|---------------|------------------------|
-| ok     | /api/users    | 200      | 123           | -                      |
-| error  | /api/orders   | 500      | -             | Internal Server Error |
-| ok     | /health       | 200      | 5             | -                      |
-```
-
-## How it works
-
-* **`models.py`** defines two concrete Pydantic models (`HttpOkEvent` and
-  `HttpErrorEvent`) and combines them into a discriminated Union `ApiEvent`
-  using `Field(discriminator="kind")`.
-* **`parser.py`** splits the raw log, creates a `ChatOpenAI` instance, decorates it
-  with `with_structured_output(ApiEvent)`, and invokes the model for each block.
-  The LLM response is automatically parsed into the appropriate Pydantic class.
-* **`main.py`** orchestrates the flow, handling errors gracefully and printing a
-  table with the `tabulate` library.
-
-## Notes & troubleshooting
-
-* **Missing API key** – the program will exit with a clear message asking you to
-  set `OPENAI_API_KEY`.
-* **LLM validation errors** – if the model returns JSON that does not match the
-  schema (e.g., missing `kind`), a `RuntimeError` with details is raised.
-* **Running locally without OpenAI** – you can replace `ChatOpenAI` with a
-  compatible local model (e.g., `ChatOllama`) by editing `parser._get_llm()`.
-
----
-
-Enjoy experimenting with structured output and discriminated unions!
-# Comparative Review Agent (LangGraph + Tavily)
+# LangGraph Research Brief Agent
 
 ## Overview
 
-This repository contains a **LangGraph** workflow that, given three entities (e.g., technologies, products, or approaches), automatically:
+This repository contains a **LangGraph**‑based agent that, given a topic, produces a short research brief (≈½–1 page). The workflow is:
 
-1. **Generates comparison criteria** using an LLM.
-2. **Performs web searches** for every *entity × criterion* pair via the **Tavily** search API.
-3. **Aggregates the findings** into a markdown table (rows = criteria, columns = entities).
-4. **Produces a concise verdict** – a short recommendation about which entity is best for which use‑case.
+1. **Outline** – an LLM generates a 4‑5 item research outline.
+2. **Iterative research** – for each outline point the agent makes **one** Tavily web‑search call, summarises the results into a concise note (5‑8 sentences), and stores the note.
+3. **Synthesis** – all notes are combined into a coherent brief with headings.
 
-The whole process can be executed from the command line.
-
----
+The demo runs entirely from the command line and prints:
+- the generated outline,
+- each step’s note prefixed with `[Шаг i]`,
+- the final brief.
 
 ## Setup
 
-1. **Clone the repository** and navigate into it.
-   ```bash
-   git clone <repo-url>
-   cd <repo-directory>
-   ```
+```bash
+# 1. Clone the repo and cd into it
+git clone <repo‑url>
+cd <repo‑dir>
 
-2. **Create a virtual environment** (optional but recommended).
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # on Windows: venv\Scripts\activate
-   ```
+# 2. (Optional) Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-3. **Install dependencies**.
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 3. Install dependencies
+pip install -r requirements.txt
+```
 
-4. **Configure environment variables**.
-   ```bash
-   cp .env.example .env
-   ```
-   Edit the newly created ``.env`` file and add your **Tavily API key** (you can obtain one at https://tavily.com).  Optionally set ``OPENAI_MODEL`` if you want to use a model other than the default ``gpt-3.5-turbo``.
+Create a ```.env``` file in the project root with the required API keys:
 
-5. **(Optional) OpenAI credentials** – the ``langchain-openai`` package reads the standard OpenAI environment variables (``OPENAI_API_KEY`` etc.).  Make sure they are set if you want the LLM parts to work.
+```
+TAVILY_API_KEY=your_tavily_key_here
+OPENAI_API_KEY=your_openai_key_here   # omit if you prefer Ollama
+```
 
----
+> **Note** – If you prefer a local Ollama model, replace the OpenAI imports in ``brief_agent.py`` with the Ollama equivalents and set ``OLLAMA_BASE_URL`` in ``.env``.
 
 ## Usage
 
-Run the demo with the default entities (Chroma, FAISS, Qdrant):
 ```bash
-python -m src.cli
+python brief_agent.py "Как студенту безопасно подключать MCP к LangChain"
 ```
 
-You can also provide your own three entities:
-```bash
-python -m src.cli "Entity A" "Entity B" "Entity C"
+If no topic is supplied, the default topic from the assignment is used.
+
+The script will output something like:
+
 ```
+Outline:
+1. Обзор MCP и его возможностей
+2. Требования к безопасности при работе с MCP
+3. Лучшие практики аутентификации и авторизации
+4. Интеграция MCP с LangChain: шаги и подводные камни
+5. Тестирование и мониторинг безопасности
 
-The script will output:
+[Шаг 1] …
+[Шаг 2] …
+[Шаг 3] …
+[Шаг 4] …
+[Шаг 5] …
 
-* The **generated criteria**.
-* The **research notes** for each entity‑criterion pair.
-* A **markdown table** summarising the comparison.
-* A **verdict** – a short recommendation.
-
----
+Final Brief:
+<coherent ½‑1 page text>
+```
 
 ## Project Structure
 
 ```
-src/
-├── __init__.py
-├── cli.py               # command‑line interface
-├── graph.py             # LangGraph workflow definition
-├── state.py             # TypedDict defining the workflow state
-└── nodes/
-    └── compare.py       # implementations of the four nodes
-requirements.txt          # Python dependencies
-.env.example              # example environment file
-README.md                 # this file
+brief_agent.py   # main script – state definition, nodes, graph, demo
+requirements.txt # Python dependencies
+README.md        # this file
+.tests/          # optional test suite (run with pytest)
+.env             # (not committed) – API keys
 ```
 
----
+## Testing (optional)
 
-## Error Handling
+A minimal test suite is provided under ``tests/test_agent.py``. Run it with:
 
-* **Missing TAVILY_API_KEY** – the program will abort with a clear message.
-* **Tavily request failures** – the corresponding note will contain an error description, and the workflow continues.
-* **OpenAI errors** – the LLM nodes raise an exception; the CLI catches it and prints a helpful message.
-
----
+```bash
+pytest
+```
 
 ## License
 
-This project is provided for educational purposes and is released under the MIT License.
+MIT License.
