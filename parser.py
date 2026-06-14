@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Utilities for turning a raw log string into a list of ``ApiEvent`` objects.
 
 The implementation relies on LangChain's *structured output* feature.  For each
@@ -8,7 +9,6 @@ If the LLM cannot be reached (missing API key, network error, etc.) a clear
 exception is raised – the CLI catches this and prints a friendly message.
 """
 
-from __future__ import annotations
 
 import os
 from typing import List
