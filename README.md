@@ -1,3 +1,48 @@
+# Interactive LLM‑Powered Adventure Game
+
+This repository contains a minimal **choose‑your‑own‑adventure** console application that demonstrates
+
+* calling an LLM (via **LangChain** / **ChatOpenAI**) to generate a story hook and three possible actions,
+* pausing execution with a **LangGraph interrupt**,
+* letting a human pick an option using **questionary**, and
+* resuming the graph to let the LLM write a short ending.
+
+## How it works
+
+1. **State definition** – `StoryState` (theme, hook, options, user_choice, ending).
+2. **Graph node** – a single node (`story_node`) that:
+   * on the first call generates the hook & options and returns `interrupt(payload)`;
+   * on resume receives the payload with the user's answer, stores it, calls the LLM again and returns the updated state.
+3. **Checkpointing** – the graph is compiled with `InMemorySaver` so the thread can be resumed after the interrupt.
+4. **Execution loop** – `adventure_main.py` starts the stream, detects the `__interrupt__` chunk, shows the question via `questionary.select`, adds the answer to the payload and resumes the graph.
+5. **Result** – after the graph finishes the final state is printed: hook → chosen action → generated ending.
+
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env        # add your OpenAI API key
+```
+
+## Running the adventure
+
+```bash
+python adventure_main.py
+```
+
+You will be asked for a theme (default *space cat*). The LLM will produce a short hook and three actions. Choose one, and the LLM will finish the story.
+
+## Dependencies
+
+- `langgraph`
+- `langchain`
+- `langchain-openai`
+- `questionary`
+- `python-dotenv` (optional, for loading the API key from `.env`)
+
+Make sure the environment variable `OPENAI_API_KEY` is set (either in your shell or in the `.env` file).
 # Deep Agent with Web Search and Virtual File System
 
 This repository contains a **self‑contained DeepAgent** built from the *Deep Agents from Scratch* tutorial. The agent can:
