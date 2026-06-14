@@ -1,4 +1,6 @@
-langchain
+rich
+langgraph
+openailangchain
 langchain-ollama
 langchain-qdrant
 qdrant-client
