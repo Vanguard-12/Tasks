@@ -1,88 +1,51 @@
-# LangGraph Research Brief Agent
+# LangGraph Reflection Agent
 
-## Overview
+## Description
 
-This repository contains a **LangGraph**‑based agent that, given a topic, produces a short research brief (≈½–1 page). The workflow is:
+This project demonstrates a **LangGraph** agent that drafts a concise answer to a question, evaluates it with a separate reflection node, and rewrites the answer up to a configurable number of rounds until the reflection verdict is `ok`.
 
-1. **Outline** – an LLM generates a 4‑5 item research outline.
-2. **Iterative research** – for each outline point the agent makes **one** Tavily web‑search call, summarises the results into a concise note (5‑8 sentences), and stores the note.
-3. **Synthesis** – all notes are combined into a coherent brief with headings.
+The workflow follows the diagram:
 
-The demo runs entirely from the command line and prints:
-- the generated outline,
-- each step’s note prefixed with `[Шаг i]`,
-- the final brief.
+```
+START → draft_answer → reflect
+         ↑ ok → END
+         needs_revision & round < max_rounds → rewrite → reflect
+         otherwise → END
+```
 
-## Setup
+## Installation
 
 ```bash
-# 1. Clone the repo and cd into it
-git clone <repo‑url>
-cd <repo‑dir>
-
-# 2. (Optional) Create a virtual environment
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
-# 3. Install dependencies
+source .venv/bin/activate   # on Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create a ```.env``` file in the project root with the required API keys:
+Create a ```.env``` file (or copy ```.env.example```) and add your OpenAI API key:
 
 ```
-TAVILY_API_KEY=your_tavily_key_here
-OPENAI_API_KEY=your_openai_key_here   # omit if you prefer Ollama
+OPENAI_API_KEY=sk-...
 ```
-
-> **Note** – If you prefer a local Ollama model, replace the OpenAI imports in ``brief_agent.py`` with the Ollama equivalents and set ``OLLAMA_BASE_URL`` in ``.env``.
 
 ## Usage
 
 ```bash
-python brief_agent.py "Как студенту безопасно подключать MCP к LangChain"
+python main.py "Объясни студенту разницу между tool и resource в MCP"
 ```
 
-If no topic is supplied, the default topic from the assignment is used.
+If you omit the question argument, the script will prompt you to type one.
 
-The script will output something like:
+## Expected Output
 
-```
-Outline:
-1. Обзор MCP и его возможностей
-2. Требования к безопасности при работе с MCP
-3. Лучшие практики аутентификации и авторизации
-4. Интеграция MCP с LangChain: шаги и подводные камни
-5. Тестирование и мониторинг безопасности
+The script prints the draft answer, the critique, the verdict, and any rewritten drafts for each round, finally displaying the final answer.
 
-[Шаг 1] …
-[Шаг 2] …
-[Шаг 3] …
-[Шаг 4] …
-[Шаг 5] …
+## Files Overview
 
-Final Brief:
-<coherent ½‑1 page text>
-```
-
-## Project Structure
-
-```
-brief_agent.py   # main script – state definition, nodes, graph, demo
-requirements.txt # Python dependencies
-README.md        # this file
-.tests/          # optional test suite (run with pytest)
-.env             # (not committed) – API keys
-```
-
-## Testing (optional)
-
-A minimal test suite is provided under ``tests/test_agent.py``. Run it with:
-
-```bash
-pytest
-```
+- **state.py** – TypedDict defining the graph state.
+- **nodes.py** – Implementations of `draft_answer`, `reflect`, and `rewrite` nodes.
+- **graph.py** – Construction of the LangGraph with conditional edges.
+- **main.py** – CLI entry point that runs the graph.
 
 ## License
 
-MIT License.
+MIT
