@@ -1,171 +1,38 @@
-# RAG Agent with Qdrant & Ollama
+# Human‑in‑the‑loop (interrupt / resume) demo
 
-This repository contains a minimal example of a **Retrieval‑Augmented Generation (RAG)** agent built with:
-
-- **Qdrant** – vector database for storing embeddings.
-- **Ollama** – local LLM (`llama3`) and embedding model (`nomic-embed-text`).
-- **LangChain** – tools, agents and utilities.
-
-## Features
-
-- **Two LangChain tools**
-  - `search_knowledge_base(query, max_results)` – semantic search in Qdrant.
-  - `add_to_knowledge_base(content, title)` – chunk, embed and store a document.
-- **Chunking** using `RecursiveCharacterTextSplitter`.
-- **Agent** that can automatically call the tools via function‑calling.
-- **CLI** (`rag_cli.py`) with commands:
-  - `/add <title>` – interactively add a document.
-  - `/search <query>` – direct search.
-  - normal text – sent to the agent, which may invoke the tools.
-- **Init script** (`rag_init_client.py`) to bulk‑load a directory of `.txt`/`.md` files.
-
-## Quick start
-
-```bash
-# 1. Install Ollama models (requires Ollama to be running)
-ollama pull llama3
-ollama pull nomic-embed-text
-
-# 2. Install Python dependencies
-pip install -r requirements.txt
-
-# 3. (Optional) Start Qdrant locally via Docker
-docker run -d --name qdrant -p 6333:6333 qdrant/qdrant
-
-# 4. Load initial documents
-python rag_init_client.py --source_dir ./documents
-
-# 5. Run the interactive CLI
-python rag_cli.py
-```
-
-## Configuration
-
-Edit `config.yaml` if you need to point to a different Qdrant host/port or use other model names.
-
-## Project structure
-
-- `rag_vector_store.py` – Qdrant client wrapper.
-- `rag_chunker.py` – text splitter.
-- `rag_tools.py` – LangChain tools.
-- `rag_agent.py` – agent creation.
-- `rag_init_client.py` – bulk document loader.
-- `rag_cli.py` – interactive command‑line interface.
-
-Feel free to extend the example (e.g., add PDF support, richer metadata, or a web UI).
-# Interactive LLM‑Powered Adventure Game
-
-This repository contains a minimal **choose‑your‑own‑adventure** console application that demonstrates
-
-* calling an LLM (via **LangChain** / **ChatOpenAI**) to generate a story hook and three possible actions,
-* pausing execution with a **LangGraph interrupt**,
-* letting a human pick an option using **questionary**, and
-* resuming the graph to let the LLM write a short ending.
+This repository contains a minimal example of a **LangGraph** workflow that pauses execution with a custom interrupt, asks the user a question in the console, and then resumes the graph using the provided answer.
 
 ## How it works
 
-1. **State definition** – `StoryState` (theme, hook, options, user_choice, ending).
-2. **Graph node** – a single node (`story_node`) that:
-   * on the first call generates the hook & options and returns `interrupt(payload)`;
-   * on resume receives the payload with the user's answer, stores it, calls the LLM again and returns the updated state.
-3. **Checkpointing** – the graph is compiled with `InMemorySaver` so the thread can be resumed after the interrupt.
-4. **Execution loop** – `adventure_main.py` starts the stream, detects the `__interrupt__` chunk, shows the question via `questionary.select`, adds the answer to the payload and resumes the graph.
-5. **Result** – after the graph finishes the final state is printed: hook → chosen action → generated ending.
+1. **State definition** – a simple `TypedDict` with a single field `human_value` that will hold the answer supplied by the user.
+2. **Interrupt node** – the node calls `interrupt({...})` with a payload containing:
+   * `type` – a string identifier (e.g., `"confirm"`).
+   * `question` – the text shown to the user.
+   * `options` – a list of possible answers.
+   When the graph is resumed the same payload (now enriched with an `answer` key) is passed back to the node, which stores the answer in the state.
+3. **Graph compilation** – the graph is compiled with an `InMemorySaver` checkpoint so that the execution can be resumed after the interrupt.
+4. **Execution loop** – the script streams the graph. When a chunk contains the special key `"__interrupt__"` it extracts the payload, displays the question using `questionary.select`, captures the answer, adds it to the payload, and resumes the graph with `Command(resume=payload)`.
+5. **Result** – after the graph finishes, the final state is printed, showing the user‑provided value.
 
-## Installation
+## Run the demo
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env        # add your OpenAI API key
+python main.py
 ```
 
-## Running the adventure
-
-```bash
-python adventure_main.py
-```
-
-You will be asked for a theme (default *space cat*). The LLM will produce a short hook and three actions. Choose one, and the LLM will finish the story.
-
-## Dependencies
-
-- `langgraph`
-- `langchain`
-- `langchain-openai`
-- `questionary`
-- `python-dotenv` (optional, for loading the API key from `.env`)
-
-Make sure the environment variable `OPENAI_API_KEY` is set (either in your shell or in the `.env` file).
-# Deep Agent with Web Search and Virtual File System
-
-This repository contains a **self‑contained DeepAgent** built from the *Deep Agents from Scratch* tutorial. The agent can:
-
-1. Perform a web search using a simple DuckDuckGo scraper.
-2. Create **virtual files** in an in‑memory file system.
-3. When the agent decides it is finished, it flushes all virtual files to a real `output/` directory on disk.
-
-## Setup
-
-```bash
-# Clone the repo and cd into it
-git clone <repo-url>
-cd <repo-dir>
-
-# Create a virtual environment (optional but recommended)
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -U pip setuptools wheel
-pip install -r requirements.txt
-```
-
-You need an **OpenAI API key** for the LLM. Create a `.env` file in the project root (or set the environment variable directly):
+You will see a prompt like:
 
 ```
-OPENAI_API_KEY=sk-...
+? Are you sure you want to continue? (Use arrow keys)
+❯ approve
+  reject
 ```
 
-The agent uses the OpenAI `gpt-4o-mini` model by default. You can change the model in `config.py`.
+After selecting an option the script prints the final state, e.g.:
 
-## Running the Agent
-
-```bash
-python agent.py "Summarize recent advances in quantum computing and save the summary to a file"
+```
+Final state: {'human_value': 'approve'}
 ```
 
-The script will:
-
-- Initialise the DeepAgent.
-- Perform a web search.
-- Ask the LLM to write the summary to a virtual file.
-- When the LLM calls the special `finalize` tool, the virtual files are written to the `output/` folder.
-
-You should see a new file inside `output/` containing the generated summary.
-
-## Project Structure
-
-- `agent.py` – entry point that builds and runs the DeepAgent.
-- `virtual_file_system.py` – in‑memory file system implementation.
-- `search_tool.py` – lightweight DuckDuckGo scraper used as the `search` tool.
-- `config.py` – configuration constants and environment loading.
-- `tests/` – unit tests for the VFS and the search wrapper.
-
-## Tests
-
-```bash
-pytest -q
-```
-
-All tests should pass.
-
-## Security Notes
-
-- The virtual file system sanitises paths and only allows writing inside the designated `output/` directory.
-- No external files are touched unless they are inside `output/`.
-
----
-
-*This project is a minimal, educational implementation of a DeepAgent. For production use you would replace the simple DuckDuckGo scraper with a proper search API (SerpAPI, Bing, Perplexity, etc.) and add more robust error handling.*
+Feel free to adapt the payload, add more nodes, or integrate this pattern into larger LangGraph applications.

@@ -1,138 +1,110 @@
-import json
-import os
-from typing import List, Dict
+from __future__ import annotations
+"""Human‑in‑the‑loop (interrupt / resume) demo using LangGraph.
 
-from dotenv import load_dotenv
-from rich import print as rprint
-from rich.console import Console
-from rich.table import Table
+The script defines a tiny graph with a single node that raises a custom interrupt.
+When the interrupt is caught, the user is asked a question via the console (using
+`questionary`). The answer is fed back into the graph, which then finishes and
+prints the final state.
+"""
 
-from langchain.agents import create_agent
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langchain.tools import tool
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.types import Command
 
-# ---------------------------------------------------------------------------
-# Load environment variables (e.g., OPENAI_API_KEY)
-# ---------------------------------------------------------------------------
-load_dotenv()
+from typing import TypedDict, Optional, Any, Dict, List
+
+from langgraph.graph import StateGraph, START
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import interrupt, Command
+import questionary
 
 # ---------------------------------------------------------------------------
-# Initialise LLM – using OpenAI's gpt‑4o‑mini as an example.
+# Graph state definition
 # ---------------------------------------------------------------------------
-from langchain_community.llms import OpenAI
 
-llm = OpenAI(model="gpt-4o-mini", temperature=0)
+class GraphState(TypedDict, total=False):
+    """State carried through the graph.
 
-# ---------------------------------------------------------------------------
-# Example tool – a mock weather function.
-# Replace with a real implementation if desired.
-# ---------------------------------------------------------------------------
-@tool
-def get_weather(city: str, date: str = "today") -> str:
-    """Return a short weather description for *city* on *date*.
-    This is a mock implementation used for demonstration purposes.
+    `human_value` will contain the answer supplied by the user after the
+    interrupt is resumed.
     """
-    return f"Sunny with a high of 22°C in {city} on {date}."
+
+    human_value: Optional[str]
 
 # ---------------------------------------------------------------------------
-# Helper functions for displaying interruptions and collecting decisions.
+# Node implementation
 # ---------------------------------------------------------------------------
-console = Console()
 
-def display_action_requests(action_requests: List[Dict]):
-    table = Table(title="Tool call awaiting confirmation")
-    table.add_column("#", style="cyan", justify="right")
-    table.add_column("Tool", style="magenta")
-    table.add_column("Arguments", style="green")
-    for idx, ar in enumerate(action_requests, start=1):
-        args_pretty = json.dumps(ar.get("args", {}), ensure_ascii=False, indent=2)
-        table.add_row(str(idx), ar.get("name", ""), args_pretty)
-    console.print(table)
+def interrupt_node(state: GraphState) -> Any:
+    """Node that either raises an interrupt or stores the resumed answer.
 
-def collect_decisions(action_requests: List[Dict], review_configs: List[Dict]) -> List[Dict]:
-    decisions: List[Dict] = []
-    for i, (ar, rc) in enumerate(zip(action_requests, review_configs)):
-        # The middleware may provide a list of allowed decisions.
-        allowed = rc.get("allowed_decisions", ["approve", "reject", "edit"])
-        # For this assignment we only handle approve/reject.
-        allowed = [d for d in allowed if d in ("approve", "reject")]
-        while True:
-            rprint(f"[bold]Action {i+1}[/bold] – tool: [magenta]{ar.get('name')}[/magenta]")
-            rprint(f"Arguments: {json.dumps(ar.get('args', {}), ensure_ascii=False, indent=2)}")
-            choice = input("Approve (a) / Reject (r): ").strip().lower()
-            if choice == "a" and "approve" in allowed:
-                decisions.append({"type": "approve"})
-                break
-            elif choice == "r" and "reject" in allowed:
-                msg = input("Reason for rejection (will be sent to the model): ")
-                decisions.append({"type": "reject", "message": msg})
-                break
-            else:
-                rprint("[red]Invalid choice. Please enter 'a' for approve or 'r' for reject.[/red]")
-    return decisions
+    The node is called twice:
+    * **First call** – `state` does not contain an ``answer`` key, so we raise
+      an interrupt with a payload describing the question.
+    * **Second call (after resume)** – the payload we passed to ``interrupt``
+      is returned as ``state``. It now contains the ``answer`` key, which we copy
+      into the graph state.
+    """
+
+    # When the node is resumed the payload we passed to ``interrupt`` is handed
+    # back as the ``state`` argument. Detect that case and store the answer.
+    if isinstance(state, dict) and "answer" in state:
+        # The user has responded – store the answer in the graph state.
+        return {"human_value": state["answer"]}
+
+    # First invocation – raise a custom interrupt.
+    payload: Dict[str, Any] = {
+        "type": "confirm",
+        "question": "Are you sure you want to continue?",
+        "options": ["approve", "reject"],
+    }
+    # ``interrupt`` tells LangGraph to pause execution and emit a chunk with the
+    # ``__interrupt__`` key containing this payload.
+    return interrupt(payload)
 
 # ---------------------------------------------------------------------------
-# Core function that runs the agent with a Human‑In‑The‑Loop loop.
+# Graph construction
 # ---------------------------------------------------------------------------
-def run_agent(messages: List[Dict], thread_id: str) -> None:
-    # Memory checkpoint ensures the pause state is persisted across resumes.
-    memory = MemorySaver()
 
-    agent = create_agent(
-        model=llm,
-        tools=[get_weather],
-        system_prompt="Ты полезный ассистент, отвечающий на вопросы о погоде.",
-        middleware=[
-            HumanInTheLoopMiddleware(
-                interrupt_on={"get_weather": True},
-                description_prefix="Подтвердите вызов инструмента",
-            ),
-        ],
-        checkpointer=memory,
-    )
-
-    config = {"configurable": {"thread_id": thread_id}}
-
-    # Initial invocation with the user's message(s).
-    result = agent.invoke({"messages": messages}, config=config)
-
-    # Loop while the middleware signals an interruption.
-    while "__interrupt__" in result:
-        interrupt = result["__interrupt__"][0].value
-        action_requests = interrupt.get("action_requests", [])
-        review_configs = interrupt.get("review_configs", [])
-
-        display_action_requests(action_requests)
-        decisions = collect_decisions(action_requests, review_configs)
-
-        # Resume execution with the gathered decisions.
-        result = agent.invoke(Command(resume={"decisions": decisions}), config=config)
-
-    # No more interruptions – print the final assistant message.
-    final_msg = result.get("messages", [])[-1].get("content", "")
-    rprint("[bold green]Assistant:[/bold green]", final_msg)
+# Create a StateGraph that works with ``GraphState``.
+graph = StateGraph(GraphState)
+graph.add_node("interrupt", interrupt_node)
+# The graph finishes after the interrupt node returns a normal state.
+graph.add_edge(START, "interrupt")
+# No further nodes – the graph ends when the interrupt node returns a dict.
+graph = graph.compile(checkpointer=InMemorySaver())
 
 # ---------------------------------------------------------------------------
-# Simple REPL – keeps the same thread_id to preserve conversation history.
+# Execution loop handling the interrupt
 # ---------------------------------------------------------------------------
-def main() -> None:
-    thread_id = "session-1"
-    rprint("[bold]Human‑in‑the‑Loop Agent Demo[/bold]")
-    rprint("Type 'exit' or press Ctrl‑C to quit.\n")
-    while True:
-        try:
-            user_input = input("You: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nGoodbye!")
+
+def run() -> None:
+    thread_id = "demo-thread"
+    config = {"thread_id": thread_id}
+
+    # Initial stream – start the graph with an empty state.
+    stream = graph.stream({"human_value": None}, configurable=config)
+    for chunk in stream:
+        # LangGraph emits a special ``__interrupt__`` key when an interrupt is
+        # raised. The value is a list of ``Interrupt`` objects; we take the first
+        # one and read its ``value`` attribute which holds the payload we passed.
+        if "__interrupt__" in chunk:
+            interrupt_obj = chunk["__interrupt__"][0]
+            payload: Dict[str, Any] = interrupt_obj.value  # type: ignore
+            # Show the question to the user and capture the answer.
+            answer = questionary.select(
+                payload["question"], choices=payload["options"]
+            ).ask()
+            # Enrich the payload with the answer so that the resumed node can
+            # store it in the graph state.
+            payload["answer"] = answer
+            # Resume the graph with the updated payload.
+            resume_stream = graph.stream(Command(resume=payload), configurable=config)
+            for resume_chunk in resume_stream:
+                # The final state will be emitted under the node name (here
+                # ``interrupt``) because that node returns the completed state.
+                if "interrupt" in resume_chunk:
+                    final_state = resume_chunk["interrupt"]
+                    print("Final state:", final_state)
+            # Once we have resumed and printed the final state we can exit.
             break
-        if user_input.lower() in {"exit", "quit"}:
-            print("Goodbye!")
-            break
-        if not user_input:
-            continue
-        run_agent([{"role": "human", "content": user_input}], thread_id)
 
 if __name__ == "__main__":
-    main()
+    run()
