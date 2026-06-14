@@ -1,46 +1,66 @@
-import sys
+import argparse
 import os
-from pathlib import Path
+import sys
+from typing import List
+from .graph import compare_graph
+from .state import CompareState
 
-from dotenv import load_dotenv
 
-from .graph import build_graph
-from .state import CodeReviewState
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="LangGraph comparison demo – compare three entities using Tavily web search."
+    )
+    parser.add_argument(
+        "entities",
+        nargs="*",
+        help="Three entities to compare. If omitted, defaults to Chroma, FAISS, Qdrant.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
-    load_dotenv()  # loads OPENAI_API_KEY or OLLAMA_BASE_URL if present
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.cli \"<python function code>\"")
-        sys.exit(1)
-    # The function code can be passed directly or as a path prefixed with @
-    arg = sys.argv[1]
-    if arg.startswith("@"):  # file reference
-        file_path = Path(arg[1:])
-        if not file_path.is_file():
-            print(f"File not found: {file_path}")
+    args = parse_args()
+    if args.entities:
+        if len(args.entities) != 3:
+            print("Please provide exactly three entities, or none to use the default set.")
             sys.exit(1)
-        code = file_path.read_text()
+        entities: List[str] = args.entities
     else:
-        code = arg
+        entities = ["Chroma", "FAISS", "Qdrant"]
 
-    # Initial state
-    init_state: CodeReviewState = {
-        "code": code,
-        "draft_review": "",
-        "criteria_scores": {},
-        "weakest_criterion": "",
-        "verdict": "",
-        "round": 0,
-        "max_rounds": 2,
+    # Initialise the state
+    initial_state: CompareState = {
+        "entities": entities,
+        "criteria": [],
+        "findings": {},
+        "final_table": None,
+        "verdict": None,
+        "pair_index": 0,
     }
 
-    graph = build_graph()
-    print("\n=== Starting LangGraph Code Review ===\n")
-    final_state = graph.invoke(init_state)
-    print("\n=== Final Verdict ===")
-    print("Verdict:", final_state.get("verdict"))
-    print("Final Review:\n", final_state.get("draft_review"))
+    try:
+        final_state = compare_graph.invoke(initial_state)
+    except Exception as exc:
+        print(f"\n❌ An error occurred while running the workflow: {exc}\n")
+        sys.exit(1)
+
+    # Output results
+    print("\n=== Generated Comparison Criteria ===")
+    for i, crit in enumerate(final_state.get("criteria", []), 1):
+        print(f"{i}. {crit}")
+
+    print("\n=== Findings (entity × criterion) ===")
+    findings = final_state.get("findings", {})
+    for entity, notes in findings.items():
+        print(f"\n--- {entity} ---")
+        for crit, note in zip(final_state.get("criteria", []), notes):
+            print(f"* {crit}: {note}")
+
+    print("\n=== Final Comparison Table ===\n")
+    print(final_state.get("final_table", "[No table generated]"))
+
+    print("\n=== Verdict ===\n")
+    print(final_state.get("verdict", "[No verdict generated]"))
 
 
 if __name__ == "__main__":

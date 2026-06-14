@@ -1,23 +1,19 @@
-from typing import TypedDict, Dict
+from typing import TypedDict, List, Dict, Optional
 
 
-class CodeReviewState(TypedDict, total=False):
-    """State used by the LangGraph code‑review workflow.
+class CompareState(TypedDict, total=False):
+    """State model for the comparison workflow.
 
-    Fields:
-        code: str – the source code to be reviewed.
-        draft_review: str – the current review text.
-        criteria_scores: dict[str, int] – scores for the four criteria.
-        weakest_criterion: str – name of the criterion with the lowest score.
-        verdict: str – "ok" or "needs_revision".
-        round: int – current iteration number.
-        max_rounds: int – maximum allowed iterations (default 2).
+    The fields listed in the assignment are required, but we also keep a few
+    internal helpers (pair_index) that are not part of the public contract.
     """
 
-    code: str
-    draft_review: str
-    criteria_scores: Dict[str, int]
-    weakest_criterion: str
-    verdict: str
-    round: int
-    max_rounds: int
+    # Public fields required by the task
+    entities: List[str]                # three entities to compare
+    criteria: List[str]                # 3‑5 generated criteria
+    findings: Dict[str, List[str]]     # entity -> list of notes (one per criterion)
+    final_table: Optional[str]        # markdown table produced at the end
+    verdict: Optional[str]            # short recommendation produced by LLM
+
+    # Internal helpers (not part of the spec but useful for the graph)
+    pair_index: int                    # linear index of the current (entity, criterion) pair

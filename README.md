@@ -1,53 +1,93 @@
-# LangGraph Code Review Agent
+# Comparative Review Agent (LangGraph + Tavily)
 
-This repository contains a **LangGraph** based agent that performs a code review of a given Python function, evaluates the review against four criteria (PEP8, type‑hints, edge cases, naming) and iteratively rewrites the weakest part of the review until the critic is satisfied or a maximum number of rounds is reached.
+## Overview
 
-## Features
+This repository contains a **LangGraph** workflow that, given three entities (e.g., technologies, products, or approaches), automatically:
 
-- **Draft review** node – generates a short bullet‑point review.
-- **Reflect** node – a critic that scores the review on four criteria and decides whether a rewrite is needed.
-- **Rewrite** node – improves the part of the review that received the lowest score.
-- Loop with a configurable `max_rounds` (default = 2).
-- Simple CLI for quick demos.
+1. **Generates comparison criteria** using an LLM.
+2. **Performs web searches** for every *entity × criterion* pair via the **Tavily** search API.
+3. **Aggregates the findings** into a markdown table (rows = criteria, columns = entities).
+4. **Produces a concise verdict** – a short recommendation about which entity is best for which use‑case.
 
-## Installation
+The whole process can be executed from the command line.
 
-```bash
-git clone <repo-url>
-cd <repo-dir>
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+---
 
-Create a `.env` file from the example and add your OpenAI API key (or configure Ollama):
+## Setup
 
-```bash
-cp .env.example .env
-# edit .env and set OPENAI_API_KEY=your-key
-```
+1. **Clone the repository** and navigate into it.
+   ```bash
+   git clone <repo-url>
+   cd <repo-directory>
+   ```
+
+2. **Create a virtual environment** (optional but recommended).
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # on Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies**.
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**.
+   ```bash
+   cp .env.example .env
+   ```
+   Edit the newly created ``.env`` file and add your **Tavily API key** (you can obtain one at https://tavily.com).  Optionally set ``OPENAI_MODEL`` if you want to use a model other than the default ``gpt-3.5-turbo``.
+
+5. **(Optional) OpenAI credentials** – the ``langchain-openai`` package reads the standard OpenAI environment variables (``OPENAI_API_KEY`` etc.).  Make sure they are set if you want the LLM parts to work.
+
+---
 
 ## Usage
 
+Run the demo with the default entities (Chroma, FAISS, Qdrant):
 ```bash
-python -m src.cli "def sort_numbers(arr):\n    return sorted(arr)"
+python -m src.cli
 ```
 
-The CLI prints:
+You can also provide your own three entities:
+```bash
+python -m src.cli "Entity A" "Entity B" "Entity C"
+```
 
-1. The initial draft review.
-2. Scores for each criterion, the weakest criterion and the verdict.
-3. Any rewritten sections (if the critic requested a revision).
-4. The final review and verdict.
+The script will output:
+
+* The **generated criteria**.
+* The **research notes** for each entity‑criterion pair.
+* A **markdown table** summarising the comparison.
+* A **verdict** – a short recommendation.
+
+---
 
 ## Project Structure
 
-- `src/state.py` – definition of the `CodeReviewState` TypedDict.
-- `src/nodes/` – implementations of the three graph nodes.
-- `src/graph.py` – builds and compiles the LangGraph workflow.
-- `src/cli.py` – entry point for the command‑line demo.
-- `src/utils.py` – helper functions (prompt templating, safe JSON parsing).
+```
+src/
+├── __init__.py
+├── cli.py               # command‑line interface
+├── graph.py             # LangGraph workflow definition
+├── state.py             # TypedDict defining the workflow state
+└── nodes/
+    └── compare.py       # implementations of the four nodes
+requirements.txt          # Python dependencies
+.env.example              # example environment file
+README.md                 # this file
+```
+
+---
+
+## Error Handling
+
+* **Missing TAVILY_API_KEY** – the program will abort with a clear message.
+* **Tavily request failures** – the corresponding note will contain an error description, and the workflow continues.
+* **OpenAI errors** – the LLM nodes raise an exception; the CLI catches it and prints a helpful message.
+
+---
 
 ## License
 
-MIT
+This project is provided for educational purposes and is released under the MIT License.
