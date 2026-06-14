@@ -1,124 +1,165 @@
 import os
-
-from vectorstore import create_vectorstore, load_documents
-from tools import set_vectorstore, search_local_kb, web_search
-
-
-def _needs_web(query: str) -> bool:
-    """Very small heuristic to decide whether a query likely requires up‑to‑date web info.
-    The list contains Russian and English keywords that commonly indicate a need for
-    current information (news, latest, etc.).
-    """
-    keywords = [
-        "новости",
-        "актуальн",
-        "сегодня",
-        "последн",
-        "latest",
-        "news",
-        "current",
-        "today",
-    ]
-    lowered = query.lower()
-    return any(word in lowered for word in keywords)
-
-
-def main():
-    # Initialise (or load) the persistent Chroma vector store.
-    vectorstore = create_vectorstore()
-    # Make the vectorstore available to the tool functions.
-    set_vectorstore(vectorstore)
-
-    # If the store is empty, try to load documents from the default folder.
-    try:
-        # ``_collection`` is an internal attribute of Chroma; we use it only to
-        # check whether any documents are already present.
-        if getattr(vectorstore, "_collection", None) is None or vectorstore._collection.count() == 0:
-            docs_dir = os.getenv("DOCS_DIR", "documents")
-            if os.path.isdir(docs_dir):
-                print("Vector store empty – loading documents …")
-                load_documents(docs_dir, vectorstore)
-    except Exception as exc:
-        # If the check fails we simply continue; the tools will raise a clear
-        # error if they are used without data.
-        print(f"Warning while checking vector store contents: {exc}")
-
-    print("AI‑assistant ready. Type 'exit' or 'quit' to stop.")
-    while True:
-        user_input = input("\nЗапрос: ").strip()
-        if user_input.lower() in {"exit", "quit"}:
-            print("Good‑bye!")
-            break
-        if not user_input:
-            continue
-
-        if _needs_web(user_input):
-            answer = web_search(user_input)
-            source = "tavily"
-        else:
-            answer = search_local_kb(user_input)
-            source = "chromadb"
-
-        print("\nОтвет:")
-        print(answer)
-        print(f"\nИсточник: {source}")
-
-
-if __name__ == "__main__":
-    main()
-import os
 import sys
-import asyncio
+import random
+import re
+from typing import TypedDict, Literal, Optional
+
 from dotenv import load_dotenv
+from langgraph.graph import StateGraph, END
+from langchain_openai import ChatOpenAI
+from langchain.schema import HumanMessage
 
-from state import ReflectState
-from graph import build_graph
+# ---------------------------------------------------------------------------
+# Load environment variables (API keys, etc.)
+# ---------------------------------------------------------------------------
+load_dotenv()
 
-load_dotenv()  # loads OPENAI_API_KEY from .env if present
+# ---------------------------------------------------------------------------
+# Agent state definition
+# ---------------------------------------------------------------------------
+class AgentState(TypedDict):
+    task: str
+    result: Optional[str]
+    attempts: int
+    status: Literal["pending", "success", "failed", "max_attempts"]
+    error: Optional[str]
+    max_attempts: int
 
-async def run_agent(question: str, max_rounds: int = 2):
-    # Initialise the graph
-    graph = build_graph(max_rounds=max_rounds)
-    compiled = graph.compile()
+# ---------------------------------------------------------------------------
+# Unreliable tool – 30% chance to raise, otherwise evaluates a simple math expr
+# ---------------------------------------------------------------------------
+def unreliable_tool(task: str) -> str:
+    """Parse a Russian phrase like 'Вычисли 2+2' and return the result.
+    Raises ValueError with ~30% probability to simulate failure.
+    """
+    if random.random() < 0.3:
+        raise ValueError("Simulated tool failure")
 
-    # Initial state
-    state: ReflectState = {
-        "question": question,
-        "draft": "",
-        "critique": "",
-        "verdict": "",
-        "round": 0,
-        "max_rounds": max_rounds,
-    }
+    # Extract the arithmetic expression after the word "Вычисли"
+    match = re.search(r"Вычисли\s*([0-9+\-*/().\s]+)", task, re.IGNORECASE)
+    if not match:
+        raise ValueError("Could not parse task")
+    expr = match.group(1).strip()
+    # Very naive safe eval – only numbers and operators are allowed
+    if not re.fullmatch(r"[0-9+\-*/().\s]+", expr):
+        raise ValueError("Unsafe expression")
+    try:
+        # eval is acceptable here because of the strict regex above
+        result = eval(expr, {"__builtins__": {}})
+    except Exception as exc:
+        raise ValueError(f"Evaluation error: {exc}")
+    return str(result)
 
-    print("\n=== Starting Reflection Agent ===\n")
-    async for event in compiled.stream(state):
-        node = event.get("next")
-        cur_state = event.get("state")
-        if node == "draft":
-            print(f"--- Draft (round {cur_state['round']}) ---")
-            print(cur_state["draft"])
-            print()
-        elif node == "reflect":
-            print(f"--- Critique (round {cur_state['round']}) ---")
-            print(cur_state["critique"])
-            print(f"Verdict: {cur_state['verdict']}")
-            print()
-        elif node == "rewrite":
-            print(f"--- Rewritten Draft (round {cur_state['round']}) ---")
-            print(cur_state["draft"])
-            print()
-    # After the stream finishes, the final state is the last emitted state
-    final_state = event.get("state") if event else state
-    print("=== Final Answer ===")
-    print(final_state.get("draft", "[No answer generated]"))
+# ---------------------------------------------------------------------------
+# Node implementations
+# ---------------------------------------------------------------------------
 
-def main():
-    if len(sys.argv) > 1:
-        question = " ".join(sys.argv[1:])
+def execute_task(state: AgentState) -> AgentState:
+    """Call the unreliable tool and store result or error."""
+    print(f"\nПопытка {state['attempts'] + 1}:")
+    try:
+        result = unreliable_tool(state["task"])
+        state["result"] = result
+        state["error"] = None
+        print(f"  результат {result}")
+    except Exception as exc:
+        state["result"] = None
+        state["error"] = str(exc)
+        print(f"  Error → {exc}")
+    # After execution we keep status as pending – verification will decide
+    state["status"] = "pending"
+    return state
+
+
+def verify_result(state: AgentState) -> AgentState:
+    """Ask LLM to judge the result. The LLM must answer only 'success' or 'failed'."""
+    # Prepare the prompt
+    result_text = state["result"] if state["result"] is not None else f"Error: {state['error']}"
+    prompt = (
+        f"Task: {state['task']}\n"
+        f"Result: {result_text}\n"
+        "Ответьте ТОЛЬКО одним словом: 'success' если результат удовлетворяет задаче, иначе 'failed'."
+    )
+    # Initialize LLM (uses OPENAI_API_KEY from env)
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+    response = llm.invoke([HumanMessage(content=prompt)])
+    verdict = response.content.strip().lower()
+    if verdict not in {"success", "failed"}:
+        # Fallback – treat unknown response as failure
+        verdict = "failed"
+    state["status"] = verdict
+    print(f"  verify: {verdict}")
+    return state
+
+
+def handle_error(state: AgentState) -> AgentState:
+    """Increment attempts and decide whether to retry or stop."""
+    state["attempts"] += 1
+    if state["attempts"] >= state["max_attempts"]:
+        state["status"] = "max_attempts"
+        print("  Достигнут лимит попыток.")
     else:
-        question = input("Enter the question: ")
-    asyncio.run(run_agent(question))
+        # Prepare for another try
+        state["result"] = None
+        state["error"] = None
+        state["status"] = "pending"
+        print("  Подготовка к повтору.")
+    return state
+
+# ---------------------------------------------------------------------------
+# Build the StateGraph
+# ---------------------------------------------------------------------------
+
+def build_graph() -> StateGraph:
+    graph = StateGraph(AgentState)
+    graph.add_node("execute_task", execute_task)
+    graph.add_node("verify_result", verify_result)
+    graph.add_node("handle_error", handle_error)
+    graph.set_entry_point("execute_task")
+
+    # execute -> verify
+    graph.add_edge("execute_task", "verify_result")
+
+    # Conditional edges from verify_result
+    def route_verify(state: AgentState):
+        if state["status"] == "success":
+            return END
+        if state["status"] == "failed" and state["attempts"] < state["max_attempts"]:
+            return "handle_error"
+        # max attempts reached or unknown status
+        return END
+
+    graph.add_conditional_edges("verify_result", route_verify, ["handle_error", END])
+    # handle_error -> execute_task (retry)
+    graph.add_edge("handle_error", "execute_task")
+    return graph.compile()
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: python -m main \"<task>\"")
+        sys.exit(1)
+    task = sys.argv[1]
+    max_attempts = 5
+    initial_state: AgentState = {
+        "task": task,
+        "result": None,
+        "attempts": 0,
+        "status": "pending",
+        "error": None,
+        "max_attempts": max_attempts,
+    }
+    print(f"Задача: {task}")
+    graph = build_graph()
+    final_state = graph.invoke(initial_state)
+    attempts = final_state["attempts"]
+    if final_state["status"] == "success":
+        print(f"Итог: success за {attempts} попыт{'ок' if attempts != 1 else 'ку'}")
+    else:
+        print(f"Итог: failed after {attempts} попыт{'ок' if attempts != 1 else 'ки'}")
 
 if __name__ == "__main__":
     main()
