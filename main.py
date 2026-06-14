@@ -1,4 +1,72 @@
 import os
+
+from vectorstore import create_vectorstore, load_documents
+from tools import set_vectorstore, search_local_kb, web_search
+
+
+def _needs_web(query: str) -> bool:
+    """Very small heuristic to decide whether a query likely requires up‑to‑date web info.
+    The list contains Russian and English keywords that commonly indicate a need for
+    current information (news, latest, etc.).
+    """
+    keywords = [
+        "новости",
+        "актуальн",
+        "сегодня",
+        "последн",
+        "latest",
+        "news",
+        "current",
+        "today",
+    ]
+    lowered = query.lower()
+    return any(word in lowered for word in keywords)
+
+
+def main():
+    # Initialise (or load) the persistent Chroma vector store.
+    vectorstore = create_vectorstore()
+    # Make the vectorstore available to the tool functions.
+    set_vectorstore(vectorstore)
+
+    # If the store is empty, try to load documents from the default folder.
+    try:
+        # ``_collection`` is an internal attribute of Chroma; we use it only to
+        # check whether any documents are already present.
+        if getattr(vectorstore, "_collection", None) is None or vectorstore._collection.count() == 0:
+            docs_dir = os.getenv("DOCS_DIR", "documents")
+            if os.path.isdir(docs_dir):
+                print("Vector store empty – loading documents …")
+                load_documents(docs_dir, vectorstore)
+    except Exception as exc:
+        # If the check fails we simply continue; the tools will raise a clear
+        # error if they are used without data.
+        print(f"Warning while checking vector store contents: {exc}")
+
+    print("AI‑assistant ready. Type 'exit' or 'quit' to stop.")
+    while True:
+        user_input = input("\nЗапрос: ").strip()
+        if user_input.lower() in {"exit", "quit"}:
+            print("Good‑bye!")
+            break
+        if not user_input:
+            continue
+
+        if _needs_web(user_input):
+            answer = web_search(user_input)
+            source = "tavily"
+        else:
+            answer = search_local_kb(user_input)
+            source = "chromadb"
+
+        print("\nОтвет:")
+        print(answer)
+        print(f"\nИсточник: {source}")
+
+
+if __name__ == "__main__":
+    main()
+import os
 import sys
 import asyncio
 from dotenv import load_dotenv

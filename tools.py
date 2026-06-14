@@ -1,49 +1,40 @@
-import os
 from typing import List
-import httpx
-from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
+
+from langchain_community.utilities import TavilySearchResults
+
+# The vectorstore will be injected from ``main.py``.
+_vectorstore = None
 
 
-def _get_chroma_collection(persist_dir: str = "chroma_faq") -> Chroma:
-    """Return a ready‑to‑use Chroma vector store.
-
-    The function assumes that the collection has already been created by
-    ``load_faq_to_chroma.py``.
+def set_vectorstore(vs):
+    """Inject the Chroma vectorstore instance used by the ``search_local_kb`` tool.
     """
-    if not os.path.isdir(persist_dir):
-        raise RuntimeError(
-            f"Chroma directory '{persist_dir}' not found. Run load_faq_to_chroma first."
-        )
-    embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    return Chroma(persist_directory=persist_dir, embedding_function=embeddings)
+    global vectorstore
+    vectorstore = vs
 
 
-def search_course_docs(query: str, k: int = 3) -> List[str]:
-    """Search the local FAQ collection and return the top *k* snippets."""
-    vectordb = _get_chroma_collection()
-    results = vectordb.similarity_search(query, k=k)
-    return [doc.page_content for doc in results]
+def search_local_kb(query: str, top_k: int = 4) -> str:
+    """Semantic search in the local ChromaDB knowledge base.
 
-
-def fetch_course_meta(query: str) -> str:
-    """Mock MCP‑style tool.
-
-    It performs a simple HTTP GET to the local mock server (``http://localhost:8000/metadata.json``)
-    and tries to return a value that matches the query. If no match is found, the whole JSON
-    payload is returned as a string.
+    Returns the concatenated page contents of the most relevant documents.
+    If the store is not initialised or no documents match, a friendly message
+    is returned.
     """
-    url = "http://localhost:8000/metadata.json"
+    if vectorstore is None:
+        return "Vector store not initialised."
+    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+    docs = retriever.get_relevant_documents(query)
+    if not docs:
+        return "No relevant documents found in the local knowledge base."
+    return "\n\n---\n\n".join([doc.page_content for doc in docs])
+
+
+def web_search(query: str) -> str:
+    """Perform a web search via the Tavily API and return a concise summary.
+    """
+    tavily = TavilySearchResults()
     try:
-        response = httpx.get(url, timeout=5.0)
-        response.raise_for_status()
-        data = response.json()
+        result = tavily.run(query)
     except Exception as exc:
-        return f"Error fetching metadata: {exc}"
-
-    query_lc = query.lower()
-    for key, value in data.items():
-        if key.lower() in query_lc:
-            return f"{key}: {value}"
-    # Fallback – return the whole JSON as a readable string
-    return ", ".join([f"{k}: {v}" for k, v in data.items()])
+        return f"Web search failed: {exc}"
+    return result
