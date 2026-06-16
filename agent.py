@@ -1,156 +1,97 @@
-import sys
-import re
-import random
-from typing import List
+import json
+from typing import List, Dict
 
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
-from langchain.tools import tool
 from langchain.agents import create_agent
+from langchain.tools import tool
 
 # ---------------------------------------------------------------------------
-# Configuration – adjust the model name if needed.
+# LLM configuration – подключаемся к локальному LM Studio (OpenAI‑совместимый)
 # ---------------------------------------------------------------------------
-MODEL_NAME = "local-model"  # replace with the exact model name used in LM Studio
-BASE_URL = "http://localhost:1234/v1"
-API_KEY = SecretStr("fake")  # LM Studio does not require a real key
+llm = ChatOpenAI(
+    model="<название модели в LM Studio>",  # замените на имя модели, которую вы запустили
+    base_url="http://localhost:1234/v1",
+    api_key=SecretStr("fake"),
+    temperature=0.7,
+)
 
 # ---------------------------------------------------------------------------
-# Initialise the LLM wrapper.
-# ---------------------------------------------------------------------------
-try:
-    llm = ChatOpenAI(
-        model=MODEL_NAME,
-        base_url=BASE_URL,
-        api_key=API_KEY,
-        temperature=0.7,
-    )
-except Exception as exc:  # pragma: no cover – catches connection errors early
-    print(
-        f"Unable to initialise LLM at {BASE_URL}.\n"
-        "Please ensure LM Studio is running and the model name is correct."
-    )
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Sub‑agent tool: generate a price table for a single product.
+# Инструмент‑субагент: генерирует примерную цену продукта в указанном городе
 # ---------------------------------------------------------------------------
 @tool
 def get_price(product: str, city: str) -> str:
-    """Generate a markdown table with a realistic price for *product* in *city*.
+    """Генерирует markdown‑таблицу с примерной ценой продукта в городе.
 
-    The function creates a **sub‑agent** that asks the LLM to produce a table:
-    ````markdown
+    Возвращаемый формат:
     | Продукт | Цена (руб.) | Магазин |
-    |---------|-------------|---------|
-    | <product> | <price> | <store> |
-    ````
-    The returned string is the raw markdown table.
     """
-    # Create a lightweight sub‑agent that has no tools – it only generates text.
+    # Создаём отдельный суб‑агент без инструментов – он лишь генерирует текст.
     sub_agent = create_agent(
         model=llm,
         tools=[],
         system_prompt=(
-            "You are a price generator. Provide a markdown table with columns "
-            "'Продукт', 'Цена (руб.)', and 'Магазин' for the given product and city. "
-            "The price should be realistic for a Russian market."
+            "Ты генерируешь примерную цену продукта в указанном городе. "
+            "Ответ дай в виде markdown‑таблицы: | Продукт | Цена (руб.) | Магазин |. "
+            "Не используй никаких инструментов, просто придумай реалистичную цену и название магазина."
         ),
     )
 
-    # Prompt the sub‑agent.
-    prompt = f"Provide a price for '{product}' in the city '{city}'."
-    try:
-        response = sub_agent.invoke({"messages": [{"role": "human", "content": prompt}]})
-    except Exception as exc:  # pragma: no cover – network / LLM errors
-        return f"| Продукт | Цена (руб.) | Магазин |\n| {product} | Ошибка получения цены | - |"
+    # Формируем запрос к суб‑агенту.
+    prompt = (
+        f"Сгенерируй цену для продукта **{product}** в городе **{city}** в виде markdown‑таблицы. "
+        "Таблица должна содержать одну строку с продуктом, ценой (в рублях) и названием магазина."
+    )
 
-    # Extract the last message content (the markdown table).
-    try:
-        table = response["messages"][-1]["content"]
-    except Exception:
-        # Fallback – generate a simple table locally if LLM response is unexpected.
-        price = random.randint(30, 150)
-        store = random.choice(["Магнит", "Пятёрочка", "Перекрёсток", "Ашан"])
-        table = (
-            "| Продукт | Цена (руб.) | Магазин |\n"
-            "|---------|-------------|---------|\n"
-            f"| {product} | {price} | {store} |"
-        )
-    return table
+    response = sub_agent.invoke({"messages": [{"role": "human", "content": prompt}]})
+    # Ответ – словарь, где последний элемент messages содержит контент.
+    content = response.get("messages", [])[-1].get("content", "")
+    # На случай, если модель вернёт JSON вместо markdown, пытаемся извлечь строку.
+    if isinstance(content, dict) and "text" in content:
+        content = content["text"]
+    return content.strip()
 
 # ---------------------------------------------------------------------------
-# Main agent – orchestrates the shopping list.
+# Главный агент – помощник по планированию покупок
 # ---------------------------------------------------------------------------
 main_agent = create_agent(
     model=llm,
     tools=[get_price],
-    system_prompt="Ты помощник по планированию покупок.",
+    system_prompt="Ты помощник по планированию покупок",
 )
 
-# ---------------------------------------------------------------------------
-# Helper utilities.
-# ---------------------------------------------------------------------------
-def format_message(msg) -> str:
-    """Return a human‑readable representation of a LangChain message."""
-    if "content" in msg and msg["content"]:
-        return msg["content"]
-    # Tool call representation
-    if "tool_calls" in msg and msg["tool_calls"]:
-        call = msg["tool_calls"][0]
-        name = call.get("name", "unknown")
-        args = call.get("args", {})
-        return f"{name}({args})"
-    return "<empty message>"
+def format_message(message: Dict) -> str:
+    """Приводит сообщение к читаемому виду.
 
-def extract_prices_from_table(table: str) -> List[float]:
-    """Parse a markdown price table and return numeric price values.
-
-    Rows with non‑numeric price formats (e.g., "120/кг") are ignored for the sum.
+    Если сообщение содержит вызов инструмента – выводим его как
+    get_price({'product': ..., 'city': ...}). Иначе – просто текст.
     """
-    prices = []
-    lines = table.splitlines()
-    for line in lines:
-        # Skip header and separator lines
-        if line.startswith("|") and not line.startswith("| Продукт"):
-            parts = [p.strip() for p in line.strip("|").split("|")]
-            if len(parts) >= 2:
-                price_str = parts[1]
-                # Extract leading number if present
-                match = re.search(r"(\d+(?:[.,]\d*)?)", price_str)
-                if match:
-                    try:
-                        price = float(match.group(1).replace(",", "."))
-                        prices.append(price)
-                    except ValueError:
-                        continue
-    return prices
+    if "content" in message and message["content"]:
+        return message["content"]
+    # tool_calls – список, но в текущей версии LangChain обычно один.
+    if "tool_calls" in message and message["tool_calls"]:
+        call = message["tool_calls"][0]
+        name = call.get("name")
+        args = json.dumps(call.get("args", {}), ensure_ascii=False)
+        return f"{name}({args})"
+    return str(message)
 
-# ---------------------------------------------------------------------------
-# Execution entry point.
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
+def main() -> None:
     user_query = (
         "Помоги составить список покупок: молоко, хлеб, яблоки. "
         "Я нахожусь в Казани."
     )
-    try:
-        result = main_agent.invoke({"messages": [{"role": "human", "content": user_query}]})
-    except Exception as exc:  # pragma: no cover – unexpected LLM errors
-        print(f"Error invoking main agent: {exc}")
-        sys.exit(1)
-
-    messages = result.get("messages", [])
-    total_price = 0.0
-    print("--- Interaction Log ---")
+    answer = main_agent.invoke({"messages": [{"role": "human", "content": user_query}]})
+    messages: List[Dict] = answer.get("messages", [])
     for msg in messages:
-        formatted = format_message(msg)
-        print(formatted)
-        # If the message looks like a price table, try to extract numbers.
-        if "| Продукт" in formatted:
-            total_price += sum(extract_prices_from_table(formatted))
-    # Print total if we managed to parse any numbers.
-    if total_price:
-        print(f"\n**Итого:** ~{int(total_price)} руб.")
-    else:
-        print("\nНе удалось вычислить итоговую стоимость.")
+        print("---")
+        print(format_message(msg))
+    print("---")
+    # Финальный ответ – последний элемент messages
+    if messages:
+        final = messages[-1].get("content", "")
+        print("\nФинальный ответ агента:\n")
+        print(final)
+
+if __name__ == "__main__":
+    main()

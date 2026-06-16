@@ -1,39 +1,77 @@
-# Simple Hierarchical AI Agent with LangChain
+# Простой AI‑агент на Python с LangChain
 
-This repository contains a minimal example of a **hierarchical AI agent** built with LangChain.
+## Описание
 
-## What it does
-- Accepts a user request for a shopping list.
-- For each product it calls a tool `get_price`.
-- `get_price` creates a **sub‑agent** that generates a realistic price (as a Markdown table) using a local LLM (LM Studio).
-- The main agent aggregates the results and prints a final table with the total cost.
+Этот репозиторий содержит минимальный пример **иерархического AI‑агента** на базе **LangChain**.
+Главный агент помогает спланировать список покупок, а для получения цены каждого продукта использует **суб‑агент‑инструмент** `get_price`.
 
-## Prerequisites
-- **LM Studio** running locally and exposing an OpenAI‑compatible API at `http://localhost:1234/v1`.
-- Python 3.10+.
+## Требования
 
-## Installation
+- Python 3.10+
+- Запущенный **LM Studio** (или любой другой OpenAI‑совместимый сервер) на `http://localhost:1234/v1`
+- Установленная модель в LM Studio (укажите её название в `agent.py`)
+
+## Установка зависимостей
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # on Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Running the script
+## Запуск скрипта
+
 ```bash
 python agent.py
 ```
-You should see a sequence of tool calls followed by a final answer, e.g.:
+
+Скрипт выполнит следующее:
+1. Подключится к локальному LLM через `ChatOpenAI`.
+2. Создаст инструмент `get_price`, внутри которого будет отдельный суб‑агент, генерирующий markdown‑таблицу с примерной ценой продукта в указанном городе.
+3. Создаст главный агент‑помощник по планированию покупок.
+4. Отправит запрос:
+   ```
+   Помоги составить список покупок: молоко, хлеб, яблоки. Я нахожусь в Казани.
+   ```
+5. Выведет в консоль все промежуточные сообщения (вызовы `get_price`) и финальный ответ, например:
+
 ```
-get_price({'product': 'молоко', 'city': 'Казань'})
-get_price({'product': 'хлеб', 'city': 'Казань'})
-get_price({'product': 'яблоки', 'city': 'Казань'})
+---
+get_price({"product": "молоко", "city": "Казань"})
+---
+| Продукт | Цена (руб.) | Магазин |
+|--------|-------------|---------|
+| молоко | 89          | Магнит |
+---
+... (аналогично для хлеба и яблок) ...
+---
+Финальный ответ агента:
+
+Вот список покупок для Казани:
+
 | Продукт | Цена (руб.) | Магазин |
 |---------|-------------|---------|
-| Молоко  | 89          | Магнит  |
-| Хлеб    | 45          | Пятёрочка |
-| Яблоки  | 120/кг      | Перекрёсток |
+| молоко  | 89          | Магнит |
+| хлеб    | 45          | Пятёрочка |
+| яблоки  | 120/кг      | Перекрёсток |
+
 **Итого:** ~254 руб.
 ```
 
-If the LLM server is not reachable, the script will print a clear error message and exit gracefully.
+## Что происходит под капотом
+
+- **`ChatOpenAI`** – подключение к локальному серверу LM Studio (OpenAI‑совместимый API).
+- **`@tool` `get_price`** – объявление инструмента, внутри которого создаётся отдельный агент без инструментов. Этот суб‑агент просто генерирует цену.
+- **`create_agent`** – используется как для главного, так и для суб‑агента.
+- **`format_message`** – удобная функция для вывода как обычных сообщений, так и вызовов инструментов.
+
+## Примечания
+
+- В `agent.py` замените `"<название модели в LM Studio>"` на реальное имя модели, которую вы запустили в LM Studio.
+- Если ваш сервер требует реального API‑ключ, замените `SecretStr("fake")` на нужное значение.
+- Температуру можно менять, но 0.7 даёт более разнообразные ответы.
+
+---
+
+© 2026 Your Course
