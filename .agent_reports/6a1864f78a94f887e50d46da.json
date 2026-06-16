@@ -1,0 +1,33 @@
+{
+  "taskId": "6a1864f78a94f887e50d46da",
+  "taskTitle": "Экзамен: RAG-агент с ChromaDB и веб-поиском",
+  "submissionId": "6a186bcd8a94f887e50d5c25",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "d53b5901a174c2ccadf9d5eb8a2e1c9d89b657a4",
+    "message": "solve: Экзамен: RAG-агент с ChromaDB и веб-поиском",
+    "files": [
+      {
+        "path": "documents/"
+      },
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "scripts/"
+      },
+      {
+        "path": "tools.py"
+      },
+      {
+        "path": "vectorstore.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:23:21.733450+00:00",
+      "localSubmit": true
+    }
+  }
+}

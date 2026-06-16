@@ -1,0 +1,30 @@
+{
+  "taskId": "6a1865008a94f887e50d471c",
+  "taskTitle": "Экзамен: Структурированный вывод (Pydantic)",
+  "submissionId": "6a186bcd8a94f887e50d5c28",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "9d6fb6389aef8444c4cee2d32c9f8354f700b928",
+    "message": "solve: Экзамен: Структурированный вывод (Pydantic)",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "structured_cli.py"
+      },
+      {
+        "path": "structured_output/"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:19:04.140847+00:00",
+      "localSubmit": true
+    }
+  }
+}

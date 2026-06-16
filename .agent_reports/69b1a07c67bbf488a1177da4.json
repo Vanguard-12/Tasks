@@ -1,0 +1,33 @@
+{
+  "taskId": "69b1a07c67bbf488a1177da4",
+  "taskTitle": "текстовая игра на основе llm + interrupt",
+  "submissionId": "69b522db3fa52dca75c066f1",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "3749d1ebb6116951d0609d9a717252fcc7516b85",
+    "message": "solve: текстовая игра на основе llm + interrupt",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "adventure_graph.py"
+      },
+      {
+        "path": "adventure_main.py"
+      },
+      {
+        "path": "llm_utils.py"
+      },
+      {
+        "path": "requirements.txt"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:34:08.874527+00:00",
+      "localSubmit": true
+    }
+  }
+}

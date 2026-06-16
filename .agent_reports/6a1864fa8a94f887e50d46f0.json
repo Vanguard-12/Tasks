@@ -1,0 +1,27 @@
+{
+  "taskId": "6a1864fa8a94f887e50d46f0",
+  "taskTitle": "Экзамен: Самокорректирующийся агент",
+  "submissionId": "6a186bcd8a94f887e50d5c26",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "1630df37a8a3053170c60ea7069bbe9c394399c6",
+    "message": "solve: Экзамен: Самокорректирующийся агент",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "requirements.txt"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:31:13.220480+00:00",
+      "localSubmit": true
+    }
+  }
+}

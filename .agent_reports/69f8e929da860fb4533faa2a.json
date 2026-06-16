@@ -1,0 +1,24 @@
+{
+  "taskId": "69f8e929da860fb4533faa2a",
+  "taskTitle": "MCP-сервер для управления памятью агента",
+  "submissionId": "69ff27bf6f4505b4619497d1",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "6b40196fbf69061bad752ca8579a28abcb51f00d",
+    "message": "solve: MCP-сервер для управления памятью агента",
+    "files": [
+      {
+        "path": "memory_client.py"
+      },
+      {
+        "path": "memory_server.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:31:57.779548+00:00",
+      "localSubmit": true
+    }
+  }
+}

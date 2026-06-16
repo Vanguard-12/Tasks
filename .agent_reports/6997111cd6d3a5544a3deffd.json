@@ -1,0 +1,24 @@
+{
+  "taskId": "6997111cd6d3a5544a3deffd",
+  "taskTitle": "Создайть просто AI агент на Python с применением langchain",
+  "submissionId": "69b03cc92a32e307dd6e23d0",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "4b392efc5863d74c9b12803daa66fb3e5e9970d1",
+    "message": "solve: Создайть просто AI агент на Python с применением langchain",
+    "files": [
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "shopping_agent.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:47:20.750675+00:00",
+      "localSubmit": true
+    }
+  }
+}

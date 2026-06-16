@@ -1,0 +1,48 @@
+{
+  "taskId": "6a02e23da6fe2e4ac16acf65",
+  "taskTitle": "Агент с RAG-памятью",
+  "submissionId": "6a186bcd8a94f887e50d5c24",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "cb83e2cc9f9e815df9ac8a55b4b56cfc99a78a5f",
+    "message": "solve: Агент с RAG-памятью",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "agent_script.py"
+      },
+      {
+        "path": "config.yaml"
+      },
+      {
+        "path": "rag_agent.py"
+      },
+      {
+        "path": "rag_chunker.py"
+      },
+      {
+        "path": "rag_cli.py"
+      },
+      {
+        "path": "rag_init_client.py"
+      },
+      {
+        "path": "rag_tools.py"
+      },
+      {
+        "path": "rag_vector_store.py"
+      },
+      {
+        "path": "requirements.txt"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:39:39.610419+00:00",
+      "localSubmit": true
+    }
+  }
+}

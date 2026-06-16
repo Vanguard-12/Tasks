@@ -1,11 +1,13 @@
-__pycache__/
-*.pyc
-.env
-.venv
-﻿.env
-.env.example
+# Python
 __pycache__/
 *.py[cod]
-.venv/
-.agent_reports/
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
 
+# Virtual environment
+.venv/
+
+# Environment variables
+.env

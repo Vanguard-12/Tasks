@@ -1,0 +1,27 @@
+{
+  "taskId": "699cc158d6d3a5544a3ed35b",
+  "taskTitle": "Stream-режим AI-агента",
+  "submissionId": "69b03cc92a32e307dd6e23d1",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "498a44a18672b3d493d337bbd472cc7ad8373745",
+    "message": "solve: Stream-режим AI-агента",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "agent_stream.py"
+      },
+      {
+        "path": "parser.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T10:52:56.065174+00:00",
+      "localSubmit": true
+    }
+  }
+}

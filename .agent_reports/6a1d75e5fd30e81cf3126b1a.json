@@ -1,0 +1,36 @@
+{
+  "taskId": "6a1d75e5fd30e81cf3126b1a",
+  "taskTitle": "Повторный экзамен: Structured output — Union событий API",
+  "submissionId": "6a2bc2bcfd30e81cf3184c25",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "70490a27450b12a4570234c4032e807a0935cf0c",
+    "message": "solve: Повторный экзамен: Structured output — Union событий API",
+    "files": [
+      {
+        "path": ".gitignore"
+      },
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "models.py"
+      },
+      {
+        "path": "parser.py"
+      },
+      {
+        "path": "requirements.txt"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:09:11.558539+00:00",
+      "localSubmit": true
+    }
+  }
+}

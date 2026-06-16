@@ -1,0 +1,36 @@
+{
+  "taskId": "6a1d75d1fd30e81cf3126af8",
+  "taskTitle": "Повторный экзамен: Граф с рефлексией и доработкой",
+  "submissionId": "6a2bc2bcfd30e81cf3184c23",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "a52bd1468ef2b6af23aa7f11a3d6309a83a250b6",
+    "message": "solve: Повторный экзамен: Граф с рефлексией и доработкой",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "graph.py"
+      },
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "nodes.py"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "state.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:14:38.255581+00:00",
+      "localSubmit": true
+    }
+  }
+}

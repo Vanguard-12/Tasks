@@ -1,0 +1,30 @@
+{
+  "taskId": "6a1d75dbfd30e81cf3126b09",
+  "taskTitle": "Повторный экзамен: Исследовательский бриф (план → шаги → сводка)",
+  "submissionId": "6a2bc2bcfd30e81cf3184c24",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "82e566b3542541557fe73cd4a85a8011e0a43577",
+    "message": "solve: Повторный экзамен: Исследовательский бриф (план → шаги → сводка)",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "brief_agent.py"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "tests/"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:11:15.709151+00:00",
+      "localSubmit": true
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "taskId": "69b19fbf67bbf488a1177d94",
+  "taskTitle": "Human-in-the-loop (interrupt / resume)",
+  "submissionId": "69b522db3fa52dca75c066f0",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "39b022b77d3a90c6fad3e32b6c36ce842081ae5b",
+    "message": "solve: Human-in-the-loop (interrupt / resume)",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "graph.py"
+      },
+      {
+        "path": "hitl_custom_demo.py"
+      },
+      {
+        "path": "hitl_demo.py"
+      },
+      {
+        "path": "hitl_graph.py"
+      },
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "run.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T10:51:27.261490+00:00",
+      "localSubmit": true
+    }
+  }
+}

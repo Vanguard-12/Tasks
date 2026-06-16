@@ -1,0 +1,21 @@
+{
+  "taskId": "6a1864fd8a94f887e50d4706",
+  "taskTitle": "Экзамен: Планирующий агент",
+  "submissionId": "6a186bcd8a94f887e50d5c27",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "64df5ea221537a7807c36b8114120ef9247c4665",
+    "message": "solve: Экзамен: Планирующий агент",
+    "files": [
+      {
+        "path": "planning_agent.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:22:09.902747+00:00",
+      "localSubmit": true
+    }
+  }
+}

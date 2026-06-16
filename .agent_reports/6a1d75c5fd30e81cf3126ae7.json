@@ -1,0 +1,42 @@
+{
+  "taskId": "6a1d75c5fd30e81cf3126ae7",
+  "taskTitle": "Повторный экзамен: FAQ-бот — ChromaDB + один MCP-tool",
+  "submissionId": "6a2bc2bcfd30e81cf3184c22",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "79e7dd30f9366da0093c559fa789df9d90ee69bb",
+    "message": "solve: Повторный экзамен: FAQ-бот — ChromaDB + один MCP-tool",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "agent.py"
+      },
+      {
+        "path": "cli.py"
+      },
+      {
+        "path": "data/"
+      },
+      {
+        "path": "load_faq_to_chroma.py"
+      },
+      {
+        "path": "mock_server/"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "tools.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:16:22.230713+00:00",
+      "localSubmit": true
+    }
+  }
+}

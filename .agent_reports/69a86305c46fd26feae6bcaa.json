@@ -1,0 +1,24 @@
+{
+  "taskId": "69a86305c46fd26feae6bcaa",
+  "taskTitle": "Human-in-the-Loop через middleware",
+  "submissionId": "69b03cc92a32e307dd6e23d3",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "8387e5ed98527cebee1a2628366eb63802d7d7fa",
+    "message": "solve: Human-in-the-Loop через middleware",
+    "files": [
+      {
+        "path": "main.py"
+      },
+      {
+        "path": "requirements.txt"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:34:54.173604+00:00",
+      "localSubmit": true
+    }
+  }
+}

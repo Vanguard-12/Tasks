@@ -1,0 +1,36 @@
+{
+  "taskId": "6a22c713fd30e81cf315e9fe",
+  "taskTitle": "Повторный экзамен #2: Сравнительный обзор 3 сущностей (Tavily)",
+  "submissionId": "6a2bc2bcfd30e81cf3184c26",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "95c681942d0e76c3fdbf18987820610dc42c2f21",
+    "message": "solve: Повторный экзамен #2: Сравнительный обзор 3 сущностей (Tavily)",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "src/cli.py"
+      },
+      {
+        "path": "src/graph.py"
+      },
+      {
+        "path": "src/nodes/compare.py"
+      },
+      {
+        "path": "src/state.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:07:45.291075+00:00",
+      "localSubmit": true
+    }
+  }
+}

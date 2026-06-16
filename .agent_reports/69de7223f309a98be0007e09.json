@@ -1,0 +1,42 @@
+{
+  "taskId": "69de7223f309a98be0007e09",
+  "taskTitle": "8. Самописный поисковый агент на основе deep agents from scratch",
+  "submissionId": "69e727e8f309a98be00115af",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "f56626784b6a7c398c61479dcc78cb2e9077809d",
+    "message": "solve: 8. Самописный поисковый агент на основе deep agents from scratch",
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "agent.py"
+      },
+      {
+        "path": "config.py"
+      },
+      {
+        "path": "requirements.txt"
+      },
+      {
+        "path": "search_tool.py"
+      },
+      {
+        "path": "tests/test_search_tool.py"
+      },
+      {
+        "path": "tests/test_virtual_file_system.py"
+      },
+      {
+        "path": "virtual_file_system.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:33:23.581358+00:00",
+      "localSubmit": true
+    }
+  }
+}

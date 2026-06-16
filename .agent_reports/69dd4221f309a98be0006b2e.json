@@ -1,0 +1,21 @@
+{
+  "taskId": "69dd4221f309a98be0006b2e",
+  "taskTitle": "сырой текст задания → плоская карточка",
+  "submissionId": "69e727e8f309a98be00115ae",
+  "commit": {
+    "repoUrl": "https://github.com/Vanguard-12/Tasks",
+    "branch": "assignment-agent/full-rerun",
+    "commitSha": "fb366d4d1ff2726e41cb58f7f90d740a6887cb17",
+    "message": "solve: сырой текст задания → плоская карточка",
+    "files": [
+      {
+        "path": "assignment_parser.py"
+      }
+    ],
+    "artifacts": [],
+    "meta": {
+      "generatedAt": "2026-06-14T09:40:46.312492+00:00",
+      "localSubmit": true
+    }
+  }
+}
