@@ -1,77 +1,46 @@
-# Простой AI‑агент на Python с LangChain
+# AI Fluency Plan Repository
 
-## Описание
+This repository contains a personal **AI Fluency development plan** created to fulfill the assignment for the *AI Fluency* course (Skilljar).
 
-Этот репозиторий содержит минимальный пример **иерархического AI‑агента** на базе **LangChain**.
-Главный агент помогает спланировать список покупок, а для получения цены каждого продукта использует **суб‑агент‑инструмент** `get_price`.
+## Repository Contents
 
-## Требования
+- **`AI_Fluency_Plan.md`** – The full plan in Markdown format. It includes:
+  - Executive Summary
+  - Self‑assessment against the five AI Fluency dimensions
+  - SMART short‑term and long‑term goals
+  - Learning resources
+  - Timeline & milestones
+  - Evaluation metrics
+  - References
+- **`README.md`** – You are reading it right now! It explains how to view and optionally export the plan.
 
-- Python 3.10+
-- Запущенный **LM Studio** (или любой другой OpenAI‑совместимый сервер) на `http://localhost:1234/v1`
-- Установленная модель в LM Studio (укажите её название в `agent.py`)
+## Viewing the Plan
 
-## Установка зависимостей
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-## Запуск скрипта
+The plan is a regular Markdown file, so you can view it directly on GitHub, or clone the repository and open it with any Markdown viewer or text editor.
 
 ```bash
-python agent.py
+git clone <repo‑url>
+cd <repo‑directory>
+cat AI_Fluency_Plan.md   # or open with VS Code, Obsidian, etc.
 ```
 
-Скрипт выполнит следующее:
-1. Подключится к локальному LLM через `ChatOpenAI`.
-2. Создаст инструмент `get_price`, внутри которого будет отдельный суб‑агент, генерирующий markdown‑таблицу с примерной ценой продукта в указанном городе.
-3. Создаст главный агент‑помощник по планированию покупок.
-4. Отправит запрос:
+## Generating a PDF (Optional)
+
+If you need a PDF version for submission, you can convert the Markdown file using **Pandoc**:
+
+1. Install Pandoc (if not already installed):
+   ```bash
+   # Debian/Ubuntu
+   sudo apt-get install pandoc
+   # macOS (Homebrew)
+   brew install pandoc
    ```
-   Помоги составить список покупок: молоко, хлеб, яблоки. Я нахожусь в Казани.
+2. Convert the Markdown to PDF:
+   ```bash
+   pandoc AI_Fluency_Plan.md -o AI_Fluency_Plan.pdf
    ```
-5. Выведет в консоль все промежуточные сообщения (вызовы `get_price`) и финальный ответ, например:
+   This will produce `AI_Fluency_Plan.pdf` in the repository root.
 
-```
----
-get_price({"product": "молоко", "city": "Казань"})
----
-| Продукт | Цена (руб.) | Магазин |
-|--------|-------------|---------|
-| молоко | 89          | Магнит |
----
-... (аналогично для хлеба и яблок) ...
----
-Финальный ответ агента:
+## License
 
-Вот список покупок для Казани:
-
-| Продукт | Цена (руб.) | Магазин |
-|---------|-------------|---------|
-| молоко  | 89          | Магнит |
-| хлеб    | 45          | Пятёрочка |
-| яблоки  | 120/кг      | Перекрёсток |
-
-**Итого:** ~254 руб.
-```
-
-## Что происходит под капотом
-
-- **`ChatOpenAI`** – подключение к локальному серверу LM Studio (OpenAI‑совместимый API).
-- **`@tool` `get_price`** – объявление инструмента, внутри которого создаётся отдельный агент без инструментов. Этот суб‑агент просто генерирует цену.
-- **`create_agent`** – используется как для главного, так и для суб‑агента.
-- **`format_message`** – удобная функция для вывода как обычных сообщений, так и вызовов инструментов.
-
-## Примечания
-
-- В `agent.py` замените `"<название модели в LM Studio>"` на реальное имя модели, которую вы запустили в LM Studio.
-- Если ваш сервер требует реального API‑ключ, замените `SecretStr("fake")` на нужное значение.
-- Температуру можно менять, но 0.7 даёт более разнообразные ответы.
-
----
-
-© 2026 Your Course
+The content of this plan is personal and may be shared publicly. The repository itself is provided under the MIT License.
