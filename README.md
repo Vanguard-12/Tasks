@@ -1,3 +1,101 @@
+# Structured Output – Union Events Demo
+
+This repository contains a small demonstration of **LangChain structured output** together with **Pydantic v2 discriminated unions**.
+
+## What it does
+
+- Takes a raw log (multiple lines, each line can be a successful request or an error).
+- Sends every line to an LLM (OpenAI compatible) with `with_structured_output` so the model returns JSON that matches a Pydantic schema.
+- The schema is a **union** of two models (`HttpOkEvent` and `HttpErrorEvent`) discriminated by the field `kind`.
+- The CLI prints the parsed events as a nice table.
+
+## Project structure
+
+```
+event_models.py   # Pydantic models + discriminated union
+event_parser.py   # Split log, call LLM, return list[ApiEvent]
+event_cli.py      # Simple CLI that uses the parser and prints a table
+README.md         # This file
+```
+
+## Installation
+
+```bash
+# Clone the repo (if you haven't already)
+git clone <repo-url>
+cd <repo-directory>
+
+# Create a virtual environment (optional but recommended)
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+The `requirements.txt` already contains:
+
+- `langchain-core`
+- `langchain-openai` (or any other LangChain provider you prefer)
+- `pydantic>=2`
+- `python-dotenv`
+- `tabulate`
+
+## Configuration
+
+Create a `.env` file (you can copy from `.env.example`) and set your OpenAI API key:
+
+```
+OPENAI_API_KEY=sk-...
+# Optional – change the model used by the demo
+OPENAI_MODEL=gpt-3.5-turbo
+```
+
+The demo works with any OpenAI‑compatible endpoint; if you use a local Ollama
+server, set the appropriate environment variables as described in the LangChain
+documentation.
+
+## Running the demo
+
+### Using the built‑in example log
+
+```bash
+python -m event_cli
+```
+
+You should see a table similar to:
+
+```
+| kind   | path          |   status |   duration_ms | error_message   |
+|--------|---------------|----------|---------------|-----------------|
+| ok     | /api/users    |      200 |           123 |                 |
+| error  | /api/unknown  |      404 |               | Not Found       |
+| error  | /api/create   |      500 |               | Internal Server Error |
+```
+
+### Providing your own log
+
+```bash
+python -m event_cli --log "200 GET /api/users 123ms\n404 GET /api/unknown Not Found"
+```
+
+The `--log` argument can contain any number of lines separated by newlines.  Lines
+can also be separated by the delimiter `---` – the parser treats both uniformly.
+
+## How it works under the hood
+
+1. **Splitting** – `event_parser.split_log` breaks the raw text into individual
+   non‑empty lines.
+2. **Prompt** – a tiny prompt tells the LLM to return JSON that matches the
+   schema.
+3. **Structured output** – `ChatOpenAI.with_structured_output(ApiEvent)` makes the
+   LLM response automatically validated against the discriminated union.
+4. **CLI** – the CLI collects the validated models, calls `model_dump()` to get a
+   plain dictionary and prints a table with `tabulate`.
+
+## License
+
+This demo is provided under the MIT License.
 # Research Brief Agent (LangGraph)
 
 This repository contains a small **LangGraph**‑based agent that builds a short research brief for a student‑provided topic.
