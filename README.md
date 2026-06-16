@@ -1,46 +1,22 @@
-# AI Fluency Plan Repository
+# LangGraph Agent with Memory and Human‑in‑the‑Loop Confirmation
 
-This repository contains a personal **AI Fluency development plan** created to fulfill the assignment for the *AI Fluency* course (Skilljar).
+This repository contains a minimal scaffold for a LangGraph agent that demonstrates:
 
-## Repository Contents
+1. **Conversation memory** using `MemorySaver` with a configurable `thread_id`.
+2. **Human‑in‑the‑loop (HITL) confirmation** before each tool invocation (`interrupt_before=['tools']`).
+3. **Rich console output** for a nicer user experience.
 
-- **`AI_Fluency_Plan.md`** – The full plan in Markdown format. It includes:
-  - Executive Summary
-  - Self‑assessment against the five AI Fluency dimensions
-  - SMART short‑term and long‑term goals
-  - Learning resources
-  - Timeline & milestones
-  - Evaluation metrics
-  - References
-- **`README.md`** – You are reading it right now! It explains how to view and optionally export the plan.
+## Files
 
-## Viewing the Plan
+- `app.py` – Entry point. Sets up the console and contains a placeholder `main` function. Replace the placeholder with the full agent implementation described in the assignment.
+- `tools.py` – Example tool (`get_price`) that the agent can call. Extend with real logic as needed.
+- `requirements.txt` – Project dependencies (`rich`, `langgraph`, `openai`).
 
-The plan is a regular Markdown file, so you can view it directly on GitHub, or clone the repository and open it with any Markdown viewer or text editor.
+## How to run
 
 ```bash
-git clone <repo‑url>
-cd <repo‑directory>
-cat AI_Fluency_Plan.md   # or open with VS Code, Obsidian, etc.
+pip install -r requirements.txt
+python app.py
 ```
 
-## Generating a PDF (Optional)
-
-If you need a PDF version for submission, you can convert the Markdown file using **Pandoc**:
-
-1. Install Pandoc (if not already installed):
-   ```bash
-   # Debian/Ubuntu
-   sudo apt-get install pandoc
-   # macOS (Homebrew)
-   brew install pandoc
-   ```
-2. Convert the Markdown to PDF:
-   ```bash
-   pandoc AI_Fluency_Plan.md -o AI_Fluency_Plan.pdf
-   ```
-   This will produce `AI_Fluency_Plan.pdf` in the repository root.
-
-## License
-
-The content of this plan is personal and may be shared publicly. The repository itself is provided under the MIT License.
+The script currently prints a welcome message. Implement the full agent logic (memory, interrupt handling, streaming) inside `app.py` following the assignment instructions.
