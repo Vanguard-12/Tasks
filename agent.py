@@ -77,21 +77,41 @@ def format_message(message: Dict) -> str:
     return str(message)
 
 def main() -> None:
+    """Run the main agent in streaming mode.
+
+    The function sends a user query to ``main_agent`` using ``.stream`` and
+    prints the response token‑by‑token. It also prints tool‑call updates in a
+    human‑readable form, separating different LangGraph steps with a visual
+    delimiter.
+    """
+    from stream_utils import format_message, format_chunk_message
+
     user_query = (
         "Помоги составить список покупок: молоко, хлеб, яблоки. "
         "Я нахожусь в Казани."
     )
-    answer = main_agent.invoke({"messages": [{"role": "human", "content": user_query}]})
-    messages: List[Dict] = answer.get("messages", [])
-    for msg in messages:
-        print("---")
-        print(format_message(msg))
-    print("---")
-    # Финальный ответ – последний элемент messages
-    if messages:
-        final = messages[-1].get("content", "")
-        print("\nФинальный ответ агента:\n")
-        print(final)
+
+    # Initialise the streaming iterator.
+    stream = main_agent.stream(
+        {"messages": [{"role": "human", "content": user_query}]},
+        stream_mode=["messages", "updates"],
+    )
+
+    # Keep track of the current LangGraph step to print separators.
+    step_state = {"step": 1}
+
+    for chunk_type, chunk_data in stream:
+        if chunk_type == "messages":
+            # ``chunk_data`` is a tuple (message, meta).
+            format_chunk_message(chunk_data, step_state)
+        elif chunk_type == "updates":
+            # ``chunk_data`` is a dict with possible ``model`` key.
+            if isinstance(chunk_data, dict) and chunk_data.get("model"):
+                last_msg = chunk_data["model"]["messages"][-1]
+                # ``last_msg`` may be a dict or a Message object.
+                print(format_message(last_msg))
+    # Ensure the cursor moves to the next line after streaming finishes.
+    print()
 
 if __name__ == "__main__":
     main()
