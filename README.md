@@ -1,92 +1,67 @@
-# LangGraph Reflection Demo
+# Research Brief Agent (LangGraph)
 
-This repository contains a small **LangGraph** based agent that:
+This repository contains a small **LangGraph**‑based agent that builds a short research brief for a student‑provided topic.
 
-1. **Drafts** a concise answer (5‑10 sentences) to a user‑provided question.
-2. Sends the draft to a **reflection** node that critiques the answer and returns a verdict (`ok` or `needs_revision`).
-3. If the verdict is `needs_revision` **and** the maximum number of revision rounds has not been reached, a **rewrite** node rewrites the answer using the critique.
-4. The loop repeats until the answer is approved or `max_rounds` (default 2) is exhausted.
+## What the agent does
+1. **Outline generation** – an LLM creates a 4‑5 item outline for the topic.
+2. **Iterative research** – for each outline point the agent performs **one** Tavily web‑search and summarises the results into a 5‑8 sentence note.
+3. **Synthesis** – all notes are combined into a coherent brief (≈½‑1 page) with headings.
 
-The whole workflow is expressed as a LangGraph, so the control flow is handled by graph edges – **no try/except retry logic** is used.
+The whole pipeline is demonstrated by the `brief_agent.py` script.
 
 ---
 
 ## Installation
-
 ```bash
-# Clone the repo and cd into it
-git clone <repo-url>
-cd <repo-dir>
-
-# Create a virtual environment (optional but recommended)
+git clone <repo‑url>
+cd <repo‑directory>
 python -m venv .venv
-source .venv/bin/activate  # on Windows: .venv\Scripts\activate
-
-# Install dependencies
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Environment variables
-
-Copy the example file and fill in the required key(s):
-
-```bash
-cp .env.example .env
+## Configuration
+Create a `.env` file in the project root with the required API keys:
 ```
-
-- **OpenAI** – set `OPENAI_API_KEY`.
-- **Ollama** – if you prefer a local model, set `OLLAMA_HOST` (e.g., `http://localhost:11434`). The code will automatically pick Ollama when the OpenAI key is missing.
-
----
-
-## Usage
-
-Run the CLI entry point:
-
-```bash
-python -m src.main --question "Объясни студенту разницу между tool и resource в MCP" --max-rounds 2
+TAVILY_API_KEY=your_tavily_key_here
+OPENAI_API_KEY=your_openai_key_here   # optional if you use OpenAI
 ```
+If you prefer a local LLM (e.g., Ollama) you can adjust the `ChatOpenAI`
+initialisation in `brief/nodes.py`.
 
-If you omit `--question`, the program will ask you to type one interactively.
+## Running the demo
+```bash
+python brief_agent.py
+```
+The script prints:
+* the generated outline,
+* each research note prefixed with its step number,
+* the final synthesized brief.
 
-### What you will see
-
-For each round the program prints:
-
-- **Draft** – the current answer.
-- **Critique** – the reflection node’s feedback.
-- **Verdict** – `ok` or `needs_revision`.
-- **Round number**.
-
-When the loop finishes, the final answer (the last draft) is printed.
+You can change the topic by setting the environment variable `BRIEF_TOPIC` before running the script:
+```bash
+BRIEF_TOPIC="Your custom topic" python brief_agent.py
+```
 
 ---
 
 ## Project structure
-
 ```
-src/
-├─ __init__.py          # makes src a package
-├─ state.py             # TypedDict describing the graph state
-├─ nodes.py             # async node implementations (draft, reflect, rewrite)
-├─ graph.py             # builds the StateGraph with conditional edges
-└─ main.py              # CLI wrapper that runs the compiled graph
+brief/                # package containing the LangGraph workflow
+│   state.py          # TypedDict defining the workflow state
+│   nodes.py          # LLM & Tavily node implementations
+│   graph.py          # construction of the StateGraph
+brief_agent.py        # entry‑point script that runs the graph
+requirements.txt      # Python dependencies
+README.md              # this file
 ```
 
----
-
-## How it works
-
-1. **State definition** – `ReflectState` (see `src/state.py`).
-2. **Nodes** – each node receives the current state, calls an LLM, and returns an updated state.
-   * `draft_answer` – creates the first answer.
-   * `reflect` – asks the LLM to evaluate the draft and to output a JSON object with a `verdict` and a short `critique`.
-   * `rewrite` – rewrites the draft using the critique and increments the round counter.
-3. **Graph** – built with `StateGraph(ReflectState)`. Edges are conditional on `state["verdict"]` and `state["round"]`.
-4. **Execution** – the compiled graph is invoked with an initial state containing the question and `max_rounds`.
+## Notes & troubleshooting
+* **Missing API keys** – the script will raise an error if `TAVILY_API_KEY` (or `OPENAI_API_KEY` when using OpenAI) is not set.
+* **Rate limits** – Tavily imposes rate limits; if you hit them, wait a few seconds and retry.
+* **LLM model** – the code uses `gpt-3.5-turbo`. You can switch to another model by changing the `model` argument in `ChatOpenAI` calls.
 
 ---
 
 ## License
-
-MIT License
+This example code is provided for educational purposes and is released under the MIT License.
