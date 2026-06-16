@@ -1,5 +1,5 @@
-langgraph>=0.0.30
-langchain>=1.2.10
-langchain-openai>=1.1.9
-questionary>=2.0.1
-python-dotenv>=1.0.0
+langchain
+langchain-qdrant
+langchain-ollama
+qdrant-client
+PyYAML

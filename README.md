@@ -1,51 +1,83 @@
-# Assignment Card Extractor
+# RAG Agent with Qdrant & Ollama
 
-This tiny utility demonstrates how to turn a **single raw assignment description** into a **validated flat data card** using LangChain's structured‑output capabilities and a Pydantic model.
+## Overview
 
-## Features
+This repository implements a simple Retrieval‑Augmented Generation (RAG) system using:
+- **Qdrant** – vector store for semantic search
+- **Ollama** – local LLM (`llama3`) and embedding model (`nomic-embed-text`)
+- **LangChain** – tools, agents and utilities
 
-- **One‑shot processing** – the LLM receives the description and returns JSON/YAML that matches a schema.
-- **Pydantic validation** – guarantees correct types (`str`, `list`, optional fields, …).
-- **Human‑readable summary** – printed alongside the raw dictionary.
+The system provides two LangChain tools:
+1. `add_to_knowledge_base(content, title)` – splits a document into chunks, creates embeddings and stores them in Qdrant.
+2. `search_knowledge_base(query, max_results)` – performs a semantic search and returns the most relevant chunks.
 
-## Prerequisites
+An agent is built that automatically calls these tools when it needs factual information.
 
+## Setup
+
+### 1. Install Ollama models
 ```bash
-pip install -r requirements.txt python-dotenv
+ollama pull llama3
+ollama pull nomic-embed-text
 ```
+Make sure the Ollama daemon is running (`ollama serve`).
 
-You also need an OpenAI API key (or any compatible provider). Put it into a ``.env`` file based on the provided ``.env.example``:
-
-```dotenv
-OPENAI_API_KEY=sk-...
-```
-
-## Usage
-
+### 2. Run Qdrant (Docker)
 ```bash
-python parse_assignment.py "Сдайте к пятнице мини-отчёт по LangChain: 2 страницы, упор на агентов. Оценка: за полноту и за пример кода."
+docker run -d -p 6333:6333 qdrant/qdrant
+```
+The service will be reachable at `localhost:6333`.
+
+### 3. Install Python dependencies
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Expected output (example)
+### 4. Configuration (optional)
+Edit **config.yaml** if you need to change host/port or model names.
 
+## Loading documents
+
+Use the helper script to ingest all files from a directory:
+```bash
+python init_client.py --source_dir ./documents
 ```
---- Structured data (model_dump) ---
-{'title': 'Мини‑отчёт по LangChain', 'subject': 'LangChain', 'deadline_hint': 'к пятнице', 'deliverable_type': 'отчёт', 'grading_hints': ['полнота', 'пример кода']}
+Each file is read, split into chunks (default 1 000 characters) and stored in the Qdrant collection.
 
---- Summary ---
-Мини‑отчёт по LangChain – отчёт, срок: к пятнице, оценка по: полнота, пример к кода.
+## Interactive CLI
+
+Run the REPL to add new files or search the knowledge base on the fly:
+```bash
+python cli.py
+```
+Commands:
+- `/add <filepath>` – ingest a new document.
+- `/search <query>` – retrieve the most relevant chunks.
+- `/quit` – exit.
+
+## Using the Agent
+
+You can also interact with the agent directly (it will call the tools automatically):
+```bash
+python agent.py
+```
+Type any question; the agent will search the knowledge base when needed and respond.
+
+## Project structure
+```
+├─ config.yaml               # connection & model settings
+├─ requirements.txt          # Python packages
+├─ vector_store.py           # Qdrant wrapper + embedding logic
+├─ chunker.py                # Text splitter
+├─ rag_tools.py              # @tool‑decorated functions
+├─ agent.py                  # LangChain agent with system prompt
+├─ init_client.py            # Bulk document loader
+├─ cli.py                    # Interactive REPL
+└─ README.md                 # This file
 ```
 
-If the LLM returns data that does not conform to the schema, a validation error will be shown.
+## License
 
-## How it works
-
-1. **Pydantic model** (`AssignmentCard`) defines the required fields.
-2. `PydanticOutputParser` generates format instructions that are injected into the prompt.
-3. The prompt asks the model to output **only** the structured data.
-4. LangChain chain (`prompt | llm | parser`) runs in a single pass.
-5. The resulting `AssignmentCard` instance is printed via `model_dump()` and a short summary.
-
----
-
-Feel free to adapt the model or prompt for your own educational‑assistant projects.
+This educational example is provided under the MIT license.
