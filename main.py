@@ -1,143 +1,84 @@
-import json
+import uuid
 import os
-import sys
-from typing import List, Dict, Any
+from typing import Any, Dict
 
-from dotenv import load_dotenv
-from langchain.agents import create_agent
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langchain.tools import tool
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import MemorySaver
+import questionary
 from langgraph.types import Command
 
-# ---------------------------------------------------------------------------
-# Load environment variables (e.g. OPENAI_API_KEY) – optional but convenient.
-# ---------------------------------------------------------------------------
-load_dotenv()
+from graph import build_graph
+from state import AdventureState
 
-# ---------------------------------------------------------------------------
-# 1. Define a simple tool (replace with a real implementation if desired).
-# ---------------------------------------------------------------------------
-@tool
-def get_weather(city: str, date: str = "today") -> str:
-    """Return a fake weather forecast for a given city and date."""
-    return f"The weather in {city} on {date} is sunny with a temperature of 20°C."
 
-# ---------------------------------------------------------------------------
-# 2. Initialise the LLM, memory and the Human‑In‑The‑Loop middleware.
-# ---------------------------------------------------------------------------
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0,
-)
+def _extract_interrupt(chunk: Dict[str, Any]) -> Dict[str, Any] | None:
+    """Helper to pull the interrupt payload from a streamed chunk.
 
-memory = MemorySaver()
-
-middleware = [
-    HumanInTheLoopMiddleware(
-        interrupt_on={"get_weather": True},  # pause on every call to get_weather
-        description_prefix="Please confirm the tool call",
-    )
-]
-
-# ---------------------------------------------------------------------------
-# 3. Build the agent.
-# ---------------------------------------------------------------------------
-agent = create_agent(
-    model=llm,
-    tools=[get_weather],
-    system_prompt="You are a helpful assistant.",
-    middleware=middleware,
-    checkpointer=memory,
-)
-
-# ---------------------------------------------------------------------------
-# 4. Helper to extract the interrupt payload (different LangGraph versions may
-#    wrap the payload in a list containing a StateSnapshot with a .value attr).
-# ---------------------------------------------------------------------------
-def _extract_interrupt(result: Dict[str, Any]) -> Dict[str, Any]:
-    """Return the dictionary inside the '__interrupt__' payload.
-
-    The payload format used by HumanInTheLoopMiddleware is:
-        result["__interrupt__"][0].value -> {"action_requests": ..., "review_configs": ...}
+    LangGraph yields dictionaries; when an interrupt occurs the key
+    ``"__interrupt__"`` is present and its value is a list of ``Interrupt``
+    objects. The first object's ``value`` attribute holds the payload we
+    supplied in ``interrupt(payload)``.
     """
-    interrupt_wrapper = result["__interrupt__"][0]
-    # Some versions expose the value directly, others via .value attribute.
-    if isinstance(interrupt_wrapper, dict) and "value" in interrupt_wrapper:
-        return interrupt_wrapper["value"]
-    # Assume an object with a .value attribute.
-    return getattr(interrupt_wrapper, "value")
+    intr = chunk.get("__interrupt__")
+    if intr:
+        # ``intr`` is a list – we take the first element.
+        return intr[0].value  # type: ignore[attr-defined]
+    return None
 
-# ---------------------------------------------------------------------------
-# 5. Core loop that handles one user query, resolves all interruptions and
-#    finally prints the assistant's answer.
-# ---------------------------------------------------------------------------
-CONFIG = {"configurable": {"thread_id": "session-1"}}
 
-def run_query(user_message: str) -> None:
-    # First call – the agent receives the user's message.
-    result = agent.invoke({"messages": [{"role": "human", "content": user_message}]}, config=CONFIG)
+def run_adventure() -> None:
+    # ---------------------------------------------------------------------
+    # 1. Gather the initial theme from the user (or use a default).
+    # ---------------------------------------------------------------------
+    theme = questionary.text("Enter a story theme (default: 'space cat'):").ask()
+    if not theme:
+        theme = "space cat"
 
-    # Keep handling interruptions until the agent finishes.
-    while "__interrupt__" in result:
-        interrupt_payload = _extract_interrupt(result)
-        action_requests: List[Dict[str, Any]] = interrupt_payload.get("action_requests", [])
-        review_configs: List[Dict[str, Any]] = interrupt_payload.get("review_configs", [])
+    # ---------------------------------------------------------------------
+    # 2. Initialise the graph and start the first stream.
+    # ---------------------------------------------------------------------
+    graph = build_graph()
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    # The initial state only contains the theme.
+    initial_state: AdventureState = {"theme": theme}
 
-        decisions: List[Dict[str, Any]] = []
-        print("\n--- Human‑in‑the‑Loop Confirmation ---")
-        for idx, action in enumerate(action_requests):
-            name = action.get("name")
-            args = action.get("args", {})
-            description = action.get("description", "")
-            allowed = review_configs[idx].get("allowed_decisions", ["approve", "reject"])
+    # ---------------------------------------------------------------------
+    # 3. Process the stream – we expect a single interrupt, then a final
+    #    state containing the ending.
+    # ---------------------------------------------------------------------
+    stream = graph.stream(initial_state, config=config)
+    for chunk in stream:
+        payload = _extract_interrupt(chunk)
+        if payload:
+            # -----------------------------------------------------------------
+            # 4. Human‑in‑the‑loop: present the question and options.
+            # -----------------------------------------------------------------
+            question = payload.get("question", "")
+            options = payload.get("options", [])
+            answer = questionary.select(question, choices=options).ask()
+            # Attach the answer to the payload – this will become the resumed
+            # input for the next node.
+            payload["user_choice"] = answer
+            # -----------------------------------------------------------------
+            # 5. Resume the graph with the enriched payload.
+            # -----------------------------------------------------------------
+            resume_stream = graph.stream(Command(resume=payload), config=config)
+            for r_chunk in resume_stream:
+                # The final chunk contains the updated state under the key
+                # "values". When the graph reaches END it yields the state.
+                if "values" in r_chunk:
+                    final_state: AdventureState = r_chunk["values"]
+                    print("\n--- Your Adventure ---\n")
+                    print(final_state.get("hook", ""))
+                    print(f"\nYou chose: {final_state.get('user_choice', '')}\n")
+                    print(final_state.get("ending", ""))
+                    return
+        # If the chunk is not an interrupt we simply continue – the node may
+        # have emitted log messages, but for this simple demo we ignore them.
 
-            print(f"\nAction #{idx + 1}:")
-            print(f"  Tool       : {name}")
-            print(f"  Arguments  : {json.dumps(args, ensure_ascii=False, indent=2)}")
-            if description:
-                print(f"  Description: {description}")
-            print(f"  Allowed decisions: {', '.join(allowed)}")
-
-            # Prompt the user until a valid decision is given.
-            while True:
-                choice = input("  Decision (a = approve, r = reject): ").strip().lower()
-                if choice == "a" and "approve" in allowed:
-                    decisions.append({"type": "approve"})
-                    break
-                if choice == "r" and "reject" in allowed:
-                    msg = input("  Reason for rejection (will be sent to the model): ").strip()
-                    decisions.append({"type": "reject", "message": msg})
-                    break
-                print("  Invalid input. Please enter 'a' or 'r' according to allowed decisions.")
-
-        # Resume the agent with the collected decisions.
-        result = agent.invoke(Command(resume={"decisions": decisions}), config=CONFIG)
-
-    # When the loop exits there is no '__interrupt__' – the agent finished.
-    final_message = result.get("messages", [])[-1].get("content", "")
-    print("\n=== Assistant Response ===")
-    print(final_message)
-
-# ---------------------------------------------------------------------------
-# 6. Simple REPL so the user can ask multiple questions while keeping the
-#    same thread_id (conversation history).
-# ---------------------------------------------------------------------------
-def main() -> None:
-    print("Human‑in‑the‑Loop LangChain Demo (type 'exit' or Ctrl‑D to quit)\n")
-    while True:
-        try:
-            user_input = input("You: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nGoodbye!")
-            break
-        if not user_input:
-            continue
-        if user_input.lower() in {"exit", "quit"}:
-            print("\nGoodbye!")
-            break
-        run_query(user_input)
 
 if __name__ == "__main__":
-    main()
+    # Load environment variables (e.g., OPENAI_API_KEY) if a .env file is present.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    run_adventure()
