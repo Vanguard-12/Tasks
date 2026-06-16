@@ -1,88 +1,126 @@
-# Structured Output CLI Demo
+# FAQ‑Bot with ChromaDB + a mock MCP‑style tool
 
-This repository contains a small command‑line tool that demonstrates **structured output** extraction using **LangChain** and **Pydantic**.
+This repository contains a minimal **FAQ‑bot** that answers questions about a course using two data sources:
 
-## What it does
+1. **Local markdown FAQ files** – indexed with **ChromaDB** and queried via an embedding model (`nomic‑embed‑text` from Ollama).
+2. **Course metadata** – fetched from a mock HTTP endpoint that mimics an MCP (Micro‑service Control Plane) tool.
 
-- Accepts a raw text describing either a **person** or a **meeting**.
-- Automatically decides which schema fits the input.
-- Uses a LangChain chain (`PromptTemplate → LLM → PydanticOutputParser`) to let the LLM generate a **validated** Pydantic object – no manual string parsing.
-- Prints the object's `model_dump()` (pretty JSON) and a short human‑readable summary.
-
-## Features required by the assignment
-
-| Requirement | Implemented |
-|-------------|-------------|
-| Two Pydantic models with `Field(description=…)` | ✅ (`models.py`) |
-| Extraction via `PydanticOutputParser` / `with_structured_output` | ✅ (`cli.py`) |
-| Routing logic (person vs meeting) | ✅ (`router.py`) |
-| CLI with built‑in examples and custom input | ✅ (`cli.py`) |
-| Works with LangChain ≥ 1.0 | ✅ (`requirements.txt`) |
-
-## Installation
-
-```bash
-# Clone the repo and cd into it
-git clone <repo-url>
-cd <repo-dir>
-
-# Create a virtual environment (optional but recommended)
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Copy the example env file and add your OpenAI key (or configure Ollama)
-cp .env.example .env
-# edit .env and set OPENAI_API_KEY=your‑key
-```
-
-## Usage
-
-```bash
-# Run the interactive demo (shows two examples and lets you type your own text)
-python cli.py
-
-# Or pass a raw text directly as a command‑line argument
-python cli.py "Анна, 28 лет, Python‑разработчик. Навыки: FastAPI, Docker."
-```
-
-The script will output something like:
-
-```json
-{
-  "name": "Анна",
-  "age": 28,
-  "profession": "Python‑разработчик",
-  "skills": ["FastAPI", "Docker"]
-}
-```
-
-and a short summary:
-
-```
-Person: Анна, 28 y, Python‑разработчик, skills: FastAPI, Docker
-```
-
-## Files overview
-
-- **models.py** – defines `PersonInfo` and `MeetingNotes`.
-- **prompt_templates.py** – builds `PromptTemplate` objects that embed the parser's format instructions.
-- **router.py** – simple keyword‑based router that selects the appropriate schema.
-- **utils.py** – helper to create the LLM client from environment variables.
-- **cli.py** – entry point, handles examples, argument parsing, routing, chain execution, and output.
-- **requirements.txt** – required Python packages.
-- **.env.example** – shows which environment variables are needed.
-
-## Notes
-
-- The LLM used is **OpenAI's `gpt-3.5‑turbo`** by default. If you prefer a local Ollama model, set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` in `.env`.
-- The router is deliberately simple (keyword heuristic) to keep the solution deterministic and fast.
-- All fields in the Pydantic models have a `Field(description=…)` as required.
-- Errors from the LLM (e.g., malformed JSON) are caught and displayed, allowing the user to retry with a different input.
+The bot decides which source to use based on simple keyword routing and always appends a `source:` tag to the answer.
 
 ---
 
-© 2026 Generated for the exam task "Структурированный вывод (Pydantic)".
+## Project structure
+
+```
+.
+├─ data/                 # 2 markdown FAQ files (faq1.md, faq2.md)
+├─ mock_data/            # static JSON served by a simple HTTP server
+│   └─ meta.json
+├─ chroma_faq/           # persisted Chroma collection (generated at runtime)
+├─ load_faq_to_chroma.py # script that loads the markdown files into Chroma
+├─ tools.py              # two tools: search_course_docs & fetch_course_meta
+├─ agent.py              # routing logic + LLM prompt
+├─ cli.py                # demo + interactive REPL
+├─ requirements.txt     # Python dependencies
+├─ .gitignore            # ignores __pycache__, .env, chroma_faq, etc.
+└─ README.md             # you are reading it!
+```
+
+---
+
+## Prerequisites
+
+- **Python 3.10+**
+- **Ollama** installed and running (see https://ollama.com/). Pull the embedding model:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+- The required Python packages (see `requirements.txt`).
+
+---
+
+## Setup & usage
+
+1. **Clone the repository** and navigate to the project root.
+
+```bash
+git clone <repo‑url>
+cd <repo‑directory>
+```
+
+2. **Create a virtual environment** and install dependencies.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+3. **Load the FAQ documents into Chroma** (this creates the `chroma_faq/` folder).
+
+```bash
+python load_faq_to_chroma.py
+```
+
+4. **Start the mock metadata server** in a separate terminal.
+
+```bash
+python -m http.server 8000 --directory mock_data
+```
+   The server will expose `http://localhost:8000/meta.json`.
+
+5. **Run the CLI demo**.
+
+```bash
+python cli.py
+```
+   The script will:
+   - Show three preset Q&A pairs (two answered from the FAQ, one from the metadata tool).
+   - Enter an interactive REPL where you can ask any question.
+
+---
+
+## How it works
+
+### 1. Loading FAQ data (`load_faq_to_chroma.py`)
+- Reads all ``*.md`` files from the ``data`` directory.
+- Splits each document into ~1 000‑character chunks (with 200‑character overlap) using LangChain's ``RecursiveCharacterTextSplitter``.
+- Embeds the chunks with ``OllamaEmbeddings(model='nomic-embed-text')``.
+- Stores the embeddings in a persistent Chroma collection located at ``./chroma_faq``.
+
+### 2. Tools (`tools.py`)
+- **`search_course_docs(query, k=3)`** – loads the persisted Chroma collection and returns the top‑k most relevant snippets.
+- **`fetch_course_meta(key)`** – performs an HTTP GET against the mock endpoint (``http://localhost:8000/meta.json``) and returns the value for the requested key (e.g., ``schedule``). This mimics an MCP‑style external tool.
+
+### 3. Agent (`agent.py`)
+- Contains a tiny routing function that looks for *metadata‑related* keywords (schedule, time, instructor, etc.).
+- Depending on the routing decision it calls either ``search_course_docs`` or ``fetch_course_meta``.
+- The raw data is fed to an Ollama chat model (``llama3.1:8b`` by default) with a system prompt that instructs the model to format the answer and to add a ``source: chroma`` or ``source: mcp_meta`` line.
+
+### 4. CLI (`cli.py`)
+- Demonstrates the bot with three hard‑coded questions.
+- Afterwards it starts an interactive loop where you can type any question.
+
+---
+
+## Extending the bot
+
+- **Add more FAQ files** – simply drop additional ``*.md`` files into the ``data`` folder and re‑run ``load_faq_to_chroma.py``.
+- **Improve routing** – replace the keyword‑based router with a small classifier model.
+- **Real MCP integration** – swap the mock HTTP call in ``fetch_course_meta`` with a real MCP client.
+
+---
+
+## Troubleshooting
+
+- **Embedding model not found** – make sure Ollama is running and the model ``nomic-embed-text`` is pulled.
+- **Chroma collection missing** – run ``python load_faq_to_chroma.py`` before using the bot.
+- **Metadata server connection error** – ensure the mock server is running on port 8000 (or set the ``META_URL`` environment variable to the correct address).
+
+---
+
+## License
+
+This example project is provided for educational purposes and is released under the MIT License.
