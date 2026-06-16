@@ -1,56 +1,49 @@
-import os
-import yaml
-from typing import List
+import sys
+from typing import Any
 
-from langchain.agents import initialize_agent, AgentType, Tool
-from langchain.llms import Ollama
-from langchain.prompts import ChatPromptTemplate
-
-# Import the tools defined in rag_tools.py
-from rag_tools import add_to_knowledge_base, search_knowledge_base
-
-# Load configuration (optional – allows overriding the LLM model)
-CONFIG_PATH = os.getenv("RAG_CONFIG", "config.yaml")
-if os.path.exists(CONFIG_PATH):
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    llm_model = cfg.get("ollama", {}).get("llm_model", "llama3")
-else:
-    llm_model = "llama3"
+from config import config
+from virtual_fs import VirtualFileSystem
+from search_tool import search
 
 
-def get_agent() -> "Agent":
-    """Create and return a LangChain chat agent equipped with RAG tools."""
-    llm = Ollama(model=llm_model)
-    tools: List[Tool] = [Tool.from_function(add_to_knowledge_base), Tool.from_function(search_knowledge_base)]
+def _create_virtual_file(vfs: VirtualFileSystem, path: str, content: str) -> None:
+    """Helper that writes *content* to *path* inside the provided virtual FS."""
+    vfs.write(path, content)
 
-    system_prompt = (
-        "You are an AI assistant with access to a knowledge base. "
-        "When you need factual information, use the provided tools. "
-        "Use `search_knowledge_base` to retrieve relevant chunks and incorporate them into your answer. "
-        "If you need to store new information, call `add_to_knowledge_base`."
-    )
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ])
 
-    agent = initialize_agent(
-        tools=tools,
-        llm=llm,
-        agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
-        prompt=prompt,
-        verbose=False,
-    )
-    return agent
+def run_interactive() -> None:
+    """Simple interactive loop demonstrating the DeepAgent capabilities.
+
+    The flow is intentionally straightforward:
+
+    1. Prompt the user for a natural‑language query.
+    2. Perform a web search using :func:`search_tool.search`.
+    3. Store the raw search result in a virtual file called ``search_result.txt``.
+    4. Generate a tiny *summary* (for demo purposes we just prepend a header).
+    5. Store the summary in ``summary.md``.
+    6. Dump the virtual file system to ``config.output_dir``.
+    """
+    vfs = VirtualFileSystem()
+    try:
+        query = input("Enter your query (or press Enter to quit): ").strip()
+        if not query:
+            print("No query provided – exiting.")
+            return
+        print("🔎 Performing web search…")
+        result = search(query)
+        _create_virtual_file(vfs, "search_result.txt", result)
+        summary = f"# Summary for query: {query}\n\n{result}\n"
+        _create_virtual_file(vfs, "summary.md", summary)
+        print(f"🗂 Writing virtual files to '{config.output_dir}' …")
+        vfs.dump(config.output_dir)
+        print("✅ Done. Files written:")
+        for f in vfs.list_files():
+            print(f" - {f}")
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Exiting.")
+    except Exception as exc:
+        print(f"An unexpected error occurred: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    agent = get_agent()
-    print("RAG Agent ready. Type 'quit' or 'exit' to stop.")
-    while True:
-        user_input = input("User: ")
-        if user_input.lower() in {"quit", "exit"}:
-            break
-        response = agent.run(user_input)
-        print("Agent:", response)
+    run_interactive()
