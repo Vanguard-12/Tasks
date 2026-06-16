@@ -1,0 +1,7 @@
+## Sample Document
+
+This is a placeholder document used to demonstrate the local knowledge base.
+
+It contains information about LangChain agents, vector stores, and how to build a RAG system.
+
+Feel free to replace this file with your own lecture notes or markdown files.
