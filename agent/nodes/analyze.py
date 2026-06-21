@@ -9,7 +9,12 @@ from agent.state import AgentState
 async def analyze_assignment_node(state: AgentState, llm: RuntimeLLM, prompt_dir: Path) -> AgentState:
     analysis = await llm.structured(
         prompt_dir / "analyze_assignment.md",
-        {"task": state.get("current_task"), "submission": state.get("current_submission")},
+        {
+            "task": state.get("current_task"),
+            "submission": state.get("current_submission"),
+            "teacher_feedback": state.get("teacher_feedback", ""),
+            "is_revision": state.get("is_revision", False),
+        },
     )
     return {**state, "node": "analyze_assignment", "analysis": analysis}
 
@@ -20,8 +25,9 @@ async def plan_code_changes_node(state: AgentState, llm: RuntimeLLM, prompt_dir:
         {
             "task": state.get("current_task"),
             "analysis": state.get("analysis"),
+            "teacher_feedback": state.get("teacher_feedback", ""),
+            "is_revision": state.get("is_revision", False),
             "repository_files": state.get("repository_files", []),
         },
     )
     return {**state, "node": "plan_code_changes", "plan": plan}
-

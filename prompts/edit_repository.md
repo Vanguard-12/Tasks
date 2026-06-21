@@ -6,12 +6,16 @@ If the repository is empty, create the complete minimal project needed to satisf
 Strict requirements:
 
 - Implement every mandatory requirement from the analysis.
+- If teacher_feedback is non-empty, address every feedback requirement explicitly.
+- If replacement_commit is true, create the complete final assignment solution in this branch. Do not return a patch-only fix; the resulting git diff must contain all files needed for the assignment.
 - Add every required dependency named by the task to the correct dependency file, unless it is already present.
 - Use the exact dependency, framework, file, class, function, command, model, output format, and interface names requested by the task.
 - Do not replace requested technologies with similar alternatives.
 - If the task asks for a CLI, provide a runnable CLI entry point or script and document the command.
 - If the task asks for structured output, schemas, TypedDict, Pydantic models, LangGraph nodes, tools, prompts, memory, RAG, MCP, Tavily, ChromaDB, or other specific components, create the actual code for those components.
 - Do not leave placeholders, TODO-only implementations, pseudo-code, fake imports, or stubs that do not run.
+- Do not leave placeholder repository URLs or template text. If documentation needs a repository URL, use the provided repo_url. If it needs a branch URL, use repo_url + "/tree/" + branch. Never invent https://github.com/yourusername/... links.
+- Do not leave unresolved values such as yourusername, your-username, example.com, REPLACE_ME, INSERT_, TODO:, or FIXME:.
 - Keep the solution focused on the current assignment and preserve unrelated existing files.
 
 Dependency rules:

@@ -20,21 +20,22 @@ REQUIRED_PATHS = [
 DONE_STATUSES = {"done", "ready_for_review"}
 
 
-def as_items(value: Any, *, label: str) -> list[dict[str, Any]]:
-    if isinstance(value, dict) and "body" in value:
-        return as_items(value["body"], label=label)
-    if isinstance(value, list):
-        items = value
-    elif isinstance(value, dict):
-        for key in ("items", "data", "result", "results", label):
-            if isinstance(value.get(key), list):
-                items = value[key]
-                break
-        else:
-            raise ValueError(f"Cannot parse {label}; raw keys: {sorted(value.keys())}")
-    else:
-        raise ValueError(f"Cannot parse {label}; expected list or object, got {type(value).__name__}")
+def body_items(value: Any, *, label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Cannot parse {label}; expected API object, got {type(value).__name__}")
+    if not isinstance(value.get("body"), list):
+        raise ValueError(f"Cannot parse {label}; expected response.body list, raw keys: {sorted(value.keys())}")
+    items = value["body"]
     return [item for item in items if isinstance(item, dict)]
+
+
+def body_object(value: Any, *, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Cannot parse {label}; expected API object, got {type(value).__name__}")
+    body = value.get("body")
+    if not isinstance(body, dict):
+        raise ValueError(f"Cannot parse {label}; expected response.body object, raw keys: {sorted(value.keys())}")
+    return body
 
 
 def str_field(data: dict[str, Any], key: str) -> str:
@@ -71,6 +72,25 @@ def title_of_task(task: dict[str, Any]) -> str:
 
 def status_of_submission(submission: dict[str, Any]) -> str:
     return str_field(submission, "status").lower()
+
+
+def feedback_of_submission(submission: dict[str, Any]) -> str:
+    feedback_parts: list[str] = []
+    rework_comment = str_field(submission, "reworkComment").strip()
+    if rework_comment:
+        feedback_parts.append(rework_comment)
+    grade = submission.get("grade")
+    if isinstance(grade, dict):
+        grade_feedback = str_field(grade, "feedback").strip()
+        if grade_feedback:
+            feedback_parts.append(grade_feedback)
+    return "\n\n".join(dict.fromkeys(feedback_parts))
+
+
+def is_revision_submission(submission: dict[str, Any] | None) -> bool:
+    if not submission:
+        return False
+    return status_of_submission(submission) == "todo" and bool(feedback_of_submission(submission))
 
 
 def submission_created_at(submission: dict[str, Any]) -> str:
@@ -116,7 +136,7 @@ async def load_api_schema_node(state: AgentState, settings: Settings) -> AgentSt
 async def fetch_tasks_node(state: AgentState, client: JournalClient, settings: Settings) -> AgentState:
     try:
         raw = await client.list_tasks(settings.course_id)
-        tasks = as_items(raw, label="tasks")
+        tasks = body_items(raw, label="tasks")
     except JournalAPIError as exc:
         if "teacher access required" not in str(exc):
             raise
@@ -130,7 +150,7 @@ async def fetch_tasks_node(state: AgentState, client: JournalClient, settings: S
 
 async def fetch_my_submissions_node(state: AgentState, client: JournalClient, settings: Settings) -> AgentState:
     raw = await client.my_submissions(settings.course_id)
-    submissions = as_items(raw, label="submissions")
+    submissions = body_items(raw, label="submissions")
     return {**state, "node": "fetch_my_submissions", "submissions": submissions}
 
 
@@ -160,13 +180,18 @@ async def select_next_assignment_node(state: AgentState, settings: Settings) -> 
     if index >= len(assignments):
         return {**state, "node": "select_next_assignment", "assignments": assignments, "done": True}
     current = assignments[index]
+    submission = current.get("submission")
+    feedback = feedback_of_submission(submission) if isinstance(submission, dict) else ""
+    is_revision = is_revision_submission(submission if isinstance(submission, dict) else None)
     return {
         **state,
         "node": "select_next_assignment",
         "assignments": assignments,
         "current_assignment": current,
         "current_task": current["task"],
-        "current_submission": current.get("submission"),
+        "current_submission": submission,
+        "teacher_feedback": feedback,
+        "is_revision": is_revision,
         "done": False,
     }
 
@@ -227,6 +252,5 @@ async def load_task_details_node(state: AgentState, client: JournalClient) -> Ag
             f"GET /api/task/{task_id} requires teacher access; using task data from submission.",
         ]
         return {**state, "node": "load_task_details", "current_task": task, "errors": errors}
-    if not isinstance(details, dict):
-        raise ValueError(f"Task details for {task_id} are not an object.")
-    return {**state, "node": "load_task_details", "current_task": details}
+    details_body = body_object(details, label=f"task {task_id}")
+    return {**state, "node": "load_task_details", "current_task": details_body}

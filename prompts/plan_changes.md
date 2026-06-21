@@ -11,6 +11,8 @@ The plan must cover every item from:
 - feedback_requirements
 - acceptance_criteria
 
+If "teacher_feedback" is non-empty, include every feedback item in requirement_traceability and self_checklist. This is a revision: the plan must produce a complete assignment solution, not a small patch-only answer.
+
 Do not omit a dependency, file, command, interface, or output format named in the task. Do not substitute requested dependencies or frameworks with alternatives. If the repository already has dependency files, plan exact updates to them. If no dependency file exists and dependencies are required, create the appropriate one for the project style.
 
 Return JSON only:
@@ -38,3 +40,4 @@ Rules:
 - Prefer complete, runnable solutions over sketches, placeholders, or pseudo-code.
 - Include CLI commands or usage examples when the assignment asks for a CLI or runnable script.
 - Include validation steps that would catch missing dependencies and missing required interfaces.
+- If replacement_commit is true or is_revision is true, plan changes as a full resubmission commit whose diff contains the complete assignment solution.

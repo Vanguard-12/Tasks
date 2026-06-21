@@ -48,13 +48,6 @@ class RuntimeLLM:
             try:
                 return parse_json_object(repaired)
             except LLMError:
-                if prompt_path.name in {"edit_repository.md", "repair_repository.md"}:
-                    return {
-                        "operations": [],
-                        "notes": [
-                            "LLM returned invalid JSON even after repair; continuing with no edit operations."
-                        ],
-                    }
                 raise
 
     async def _invoke_text(self, system_prompt: str, payload_text: str) -> str:

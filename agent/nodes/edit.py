@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from agent.llm import RuntimeLLM
 from agent.config import Settings
@@ -19,7 +20,7 @@ def _as_string_list(value: Any) -> list[str]:
 
 def _planned_files(plan: dict[str, Any]) -> list[str]:
     files: list[str] = []
-    for key in ("files to inspect", "files_to_inspect", "files to modify", "files_to_modify"):
+    for key in ("files_to_inspect", "files_to_modify"):
         files.extend(_as_string_list(plan.get(key)))
     return sorted(set(files))
 
@@ -29,6 +30,23 @@ def _changed_since_baseline(repo: GitRepo, baseline_changed_files: list[str], fa
         after_changed_files = repo.changed_files()
         return sorted(set(after_changed_files) - set(baseline_changed_files))
     return sorted(set(fallback))
+
+
+def public_repo_url(repo_url: str) -> str:
+    repo_url = repo_url.strip()
+    if not repo_url:
+        return ""
+    if repo_url.startswith("git@github.com:"):
+        repo_url = "https://github.com/" + repo_url.removeprefix("git@github.com:")
+    elif repo_url.startswith("ssh://git@github.com/"):
+        repo_url = "https://github.com/" + repo_url.removeprefix("ssh://git@github.com/")
+    if repo_url.startswith(("http://", "https://")):
+        parts = urlsplit(repo_url)
+        netloc = parts.hostname or parts.netloc.split("@")[-1]
+        if parts.port:
+            netloc = f"{netloc}:{parts.port}"
+        repo_url = urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    return repo_url.removesuffix(".git")
 
 
 def apply_operations(repo_fs: RepoFS, operations: Any) -> list[str]:
@@ -56,17 +74,8 @@ def apply_operations(repo_fs: RepoFS, operations: Any) -> list[str]:
         elif tool == "apply_patch":
             old = operation.get("old")
             new = operation.get("new")
-            content = operation.get("content")
-            if (old is None or new is None) and isinstance(content, str):
-                try:
-                    changed.append(repo_fs.write_file(path, content))
-                except RepoFSError as exc:
-                    if Path(path).name in {".env", ".env.example"}:
-                        continue
-                    raise exc
-                continue
             if not isinstance(old, str) or not isinstance(new, str):
-                continue
+                raise ValueError(f"apply_patch requires string old and new fields: {path}")
             try:
                 changed.append(repo_fs.apply_patch(path, old, new))
             except FileNotFoundError:
@@ -94,7 +103,13 @@ async def edit_repository_node(
     adopt_existing_changes: bool = False,
 ) -> AgentState:
     task = state.get("current_task") or {}
-    branch, base_sha = checkout_assignment_branch(repo, task, settings)
+    branch, base_sha, replacement_commit = checkout_assignment_branch(
+        repo,
+        task,
+        settings,
+        replace_existing=bool(state.get("is_revision")),
+    )
+    repo_url = public_repo_url(repo.remote_url() or settings.github_repo_url)
     baseline_changed_files = [] if adopt_existing_changes else (repo.changed_files() if repo.is_repo() else [])
     all_files = repo_fs.list_files()
     plan = state.get("plan", {})
@@ -109,6 +124,12 @@ async def edit_repository_node(
             "task": state.get("current_task"),
             "analysis": state.get("analysis"),
             "plan": plan,
+            "teacher_feedback": state.get("teacher_feedback", ""),
+            "is_revision": state.get("is_revision", False),
+            "replacement_commit": replacement_commit,
+            "repo_url": repo_url,
+            "branch": branch,
+            "base_sha": base_sha,
             "files": all_files,
             "file_context": file_context,
         },
@@ -124,6 +145,8 @@ async def edit_repository_node(
         "baseline_changed_files": baseline_changed_files,
         "branch": branch,
         "base_sha": base_sha,
+        "replacement_commit": replacement_commit,
+        "repo_url": repo_url,
         "repair_attempts": 0,
     }
 
@@ -145,6 +168,12 @@ async def repair_repository_node(
             "plan": state.get("plan"),
             "checks": state.get("checks", {}),
             "review": state.get("review", {}),
+            "teacher_feedback": state.get("teacher_feedback", ""),
+            "is_revision": state.get("is_revision", False),
+            "replacement_commit": state.get("replacement_commit", False),
+            "repo_url": state.get("repo_url", ""),
+            "branch": state.get("branch", ""),
+            "base_sha": state.get("base_sha", ""),
             "changed_files": state.get("changed_files", []),
             "diff": diff,
         },

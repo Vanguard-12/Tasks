@@ -54,6 +54,8 @@ def commit_metadata_payload(state: AgentState) -> dict[str, Any]:
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "localSubmit": True,
             "baseSha": state.get("base_sha", ""),
+            "isRevision": state.get("is_revision", False),
+            "replacementCommit": state.get("replacement_commit", False),
         },
     }
 
@@ -116,6 +118,8 @@ async def print_summary_node(state: AgentState) -> AgentState:
         "commitSha": state.get("commit_sha", ""),
         "branch": state.get("branch", ""),
         "baseSha": state.get("base_sha", ""),
+        "isRevision": state.get("is_revision", False),
+        "replacementCommit": state.get("replacement_commit", False),
         "changedFiles": state.get("changed_files", []),
         "localReportPath": state.get("local_report_path", ""),
     }

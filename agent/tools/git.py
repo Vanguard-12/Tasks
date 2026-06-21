@@ -76,6 +76,22 @@ class GitRepo:
                 self.run("checkout", "-b", branch, start_point)
         return self.current_branch()
 
+    def fetch_branch(self, branch: str, remote: str = "origin") -> None:
+        self.ensure_repo()
+        self.run("fetch", remote, branch, check=False)
+
+    def is_clean(self) -> bool:
+        self.ensure_repo()
+        return not self.run("status", "--porcelain").stdout.strip()
+
+    def reset_hard(self, target: str) -> None:
+        self.ensure_repo()
+        self.run("reset", "--hard", target)
+
+    def clean_untracked(self) -> None:
+        self.ensure_repo()
+        self.run("clean", "-fd")
+
     def changed_files(self) -> list[str]:
         self.ensure_repo()
         output = self.run("status", "--short").stdout.splitlines()
@@ -126,9 +142,6 @@ class GitRepo:
         )
         return self.run("rev-parse", "HEAD").stdout.strip()
 
-    def commit_all(self, message: str, author_name: str, author_email: str) -> str:
-        return self.commit_files(self.changed_files(), message, author_name, author_email)
-
     def head_sha(self) -> str:
         self.ensure_repo()
         return self.run("rev-parse", "HEAD").stdout.strip()
@@ -151,7 +164,19 @@ class GitRepo:
             self.run("remote", "add", "origin", remote_url)
         return remote_url
 
-    def push(self, branch: str) -> str:
+    def push(self, branch: str, *, force_with_lease: bool = False) -> str:
         self.ensure_repo()
-        self.run("push", "-u", "origin", branch)
+        if force_with_lease:
+            self.fetch_branch(branch)
+        args = ["push", "-u"]
+        if force_with_lease:
+            args.append("--force-with-lease")
+        args.extend(["origin", branch])
+        result = self.run(*args, check=False)
+        if result.returncode != 0 and force_with_lease and "stale info" in (result.stderr + result.stdout):
+            self.fetch_branch(branch)
+            result = self.run(*args, check=False)
+        if result.returncode != 0:
+            message = result.stderr.strip() or result.stdout.strip()
+            raise GitError(f"git {' '.join(args)} failed: {message}")
         return branch

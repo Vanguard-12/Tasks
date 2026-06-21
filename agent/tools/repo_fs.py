@@ -47,19 +47,6 @@ class RepoFS:
         target.mkdir(parents=True, exist_ok=True)
         return target.relative_to(self.root).as_posix()
 
-    def search_files(self, query: str, pattern: str = "*") -> list[dict[str, str | int]]:
-        matches: list[dict[str, str | int]] = []
-        for rel in self.list_files(pattern):
-            path = self._resolve(rel)
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except UnicodeDecodeError:
-                continue
-            for number, line in enumerate(lines, start=1):
-                if query in line:
-                    matches.append({"file": rel, "line": number, "text": line})
-        return matches
-
     def apply_patch(self, path: str | Path, old: str, new: str) -> str:
         target = self._resolve(path)
         self._ensure_editable(target)

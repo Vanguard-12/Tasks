@@ -6,7 +6,7 @@ You must extract every explicit requirement from the task. Do not replace reques
 
 If a dependency is required by the task, include it exactly in "required_dependencies". If the task does not specify versions, prefer modern stable package names and avoid obsolete packages or unnecessary old pins.
 
-If submission feedback, review comments, teacher comments, error messages, or revision notes are present in the submission payload, extract them into "feedback_requirements" and treat them as mandatory fixes.
+If "teacher_feedback" is non-empty, this is a revision attempt. Extract every concrete instruction from teacher_feedback into "feedback_requirements" and treat those items as mandatory fixes. Do not infer feedback from other submission fields.
 
 Return JSON only:
 
@@ -30,3 +30,4 @@ Rules:
 - Mark a requirement as mandatory when the wording uses must, should, required, use, implement, create, add, include, return, output, expose, support, or similar imperative language.
 - Include negative requirements such as "do not use X" in forbidden_shortcuts.
 - Acceptance criteria must be checkable against repository files and command output.
+- If is_revision is true, the solution must address teacher_feedback explicitly while still satisfying the original assignment.

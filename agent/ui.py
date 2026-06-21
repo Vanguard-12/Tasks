@@ -109,6 +109,9 @@ def print_assignment_start(console: Console, state: dict[str, Any], settings: Se
     table.add_row("Task ID", item_id(task))
     table.add_row("Submission ID", submission_id(submission))
     table.add_row("Статус", status_of_submission(submission) or "unknown")
+    table.add_row("Доработка", "да" if state.get("is_revision") else "нет")
+    if state.get("teacher_feedback"):
+        table.add_row("Комментарий", str(state.get("teacher_feedback"))[:120])
     table.add_row("Ветка", branch)
     console.print(Panel(table, title="[bold]Начинаю задание[/bold]", border_style="cyan"))
 
@@ -136,12 +139,26 @@ def print_checks(console: Console, state: dict[str, Any]) -> None:
     table = Table(title="Sanity checks")
     table.add_column("Check")
     table.add_column("Status")
+    table.add_column("Details")
     for item in checks:
         if not isinstance(item, dict):
             continue
         ok = bool(item.get("ok"))
-        table.add_row(str(item.get("name", "check")), "[green]OK[/green]" if ok else "[red]FAIL[/red]")
+        output = "" if ok else str(item.get("output", ""))[:240]
+        table.add_row(str(item.get("name", "check")), "[green]OK[/green]" if ok else "[red]FAIL[/red]", output)
     console.print(table)
+
+
+def _review_list_lines(review: dict[str, Any], key: str, limit: int = 8) -> list[str]:
+    value = review.get(key)
+    if not isinstance(value, list) or not value:
+        return []
+    lines = [f"[bold]{key}[/bold]:"]
+    for item in value[:limit]:
+        lines.append(f"- {str(item)}")
+    if len(value) > limit:
+        lines.append(f"- ... and {len(value) - limit} more")
+    return lines
 
 
 def print_review(console: Console, state: dict[str, Any]) -> None:
@@ -151,11 +168,12 @@ def print_review(console: Console, state: dict[str, Any]) -> None:
     acceptable = review.get("acceptable") is not False
     color = "green" if acceptable else "red"
     status = "Принято" if acceptable else "Нужны исправления"
-    details = []
+    details: list[str] = []
     for key in ("missing_requirements", "missing_dependencies", "dependency_issues", "findings"):
-        value = review.get(key)
-        if isinstance(value, list) and value:
-            details.append(f"[bold]{key}[/bold]: {len(value)}")
+        details.extend(_review_list_lines(review, key))
+    summary = review.get("summary")
+    if summary:
+        details.append(f"[bold]summary[/bold]: {summary}")
     body = "\n".join(details) if details else str(review.get("summary", ""))
     console.print(Panel(body or status, title=f"[bold {color}]Review: {status}[/bold {color}]", border_style=color))
 
@@ -196,7 +214,8 @@ def print_node_result(console: Console, name: str, state: dict[str, Any], settin
     elif name == "commit_changes":
         print_commit(console, state)
     elif name == "push_changes":
-        console.print(f"[green]Push выполнен:[/green] {state.get('branch', '')}")
+        mode = " --force-with-lease" if state.get("replacement_commit") else ""
+        console.print(f"[green]Push выполнен{mode}:[/green] {state.get('branch', '')}")
     elif name == "save_commit_metadata":
         console.print("[green]Commit metadata сохранена в Journal.bh[/green]")
     elif name == "submit_assignment":

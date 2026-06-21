@@ -15,6 +15,8 @@ class AgentState(TypedDict, total=False):
     current_assignment: dict[str, Any] | None
     current_task: dict[str, Any] | None
     current_submission: dict[str, Any] | None
+    teacher_feedback: str
+    is_revision: bool
 
     analysis: dict[str, Any]
     plan: dict[str, Any]
@@ -30,6 +32,7 @@ class AgentState(TypedDict, total=False):
     commit_sha: str
     branch: str
     base_sha: str
+    replacement_commit: bool
     repo_url: str
     local_report_path: str
 

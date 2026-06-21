@@ -46,6 +46,38 @@ def run_git_diff_check(repo: GitRepo) -> dict[str, Any]:
     }
 
 
+def run_placeholder_scan(repo: GitRepo) -> dict[str, Any]:
+    findings: list[str] = []
+    suspicious = (
+        "yourusername",
+        "your-username",
+        "example.com",
+        "REPLACE_ME",
+        "INSERT_",
+        "TODO:",
+        "FIXME:",
+    )
+    for rel in repo.changed_files():
+        normalized = rel.replace("\\", "/")
+        if normalized in {".env", ".env.example"}:
+            continue
+        path = repo.root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if any(token in line for token in suspicious):
+                findings.append(f"{normalized}:{line_number}: {line.strip()[:160]}")
+    return {
+        "name": "placeholder scan",
+        "ok": not findings,
+        "output": compact_output("\n".join(findings)),
+    }
+
+
 def compact_output(output: str, max_lines: int = 80) -> str:
     lines = [line for line in output.splitlines() if line.strip()]
     if len(lines) <= max_lines:
