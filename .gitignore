@@ -8,6 +8,12 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .agent_reports/
+.pnpm-store/
+ui/node_modules/
+ui/.next/
+ui/out/
+.langgraph_api/
+.langgraph-test*.log
 dist/
 build/
 *.egg-info/

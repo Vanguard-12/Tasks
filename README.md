@@ -27,6 +27,7 @@ The agent uses a LangGraph workflow, Journal.bh API, a local git repository for 
 agent/
   main.py                 CLI entry point
   config.py               Runtime settings
+  deepagents_app.py       LangGraph export for Deep Agents UI
   graph.py                LangGraph workflow
   llm.py                  LLM wrapper
   state.py                Graph state
@@ -117,6 +118,41 @@ or:
 
 ```bash
 journal-agent run
+```
+
+## Deep Agents UI
+
+The project includes Deep Agents UI in `ui/` and exposes the assignment agent through a local LangGraph deployment.
+
+During execution the graph publishes UI-friendly state:
+
+- `messages` with human-readable progress updates;
+- `ui_events` with a structured timeline;
+- `files` with clickable markdown dashboards:
+  - `agent_status.md`
+  - `current_assignment.md`
+  - `checks_and_review.md`
+  - `git_and_submission.md`
+  - `event_timeline.md`
+
+Start both the LangGraph API and the UI:
+
+```powershell
+.\start-deep-agents-ui.ps1
+```
+
+The script opens:
+
+```text
+LangGraph API: http://127.0.0.1:2025
+Deep Agents UI: http://localhost:3000
+```
+
+The UI default configuration is already set:
+
+```text
+Deployment URL: http://127.0.0.1:2025
+Assistant ID: journal_agent
 ```
 
 ## Assignment Branches

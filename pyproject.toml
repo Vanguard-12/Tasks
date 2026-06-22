@@ -9,6 +9,7 @@ dependencies = [
   "langchain>=0.2.0",
   "langchain-openai>=0.1.0",
   "langgraph>=0.1.0",
+  "langgraph-cli[inmem]>=0.1.0",
   "pydantic>=2.7.0",
   "pydantic-settings>=2.2.0",
   "python-dotenv>=1.0.0",
@@ -25,4 +26,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent"]
-

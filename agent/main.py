@@ -79,7 +79,17 @@ async def _run_async() -> None:
         )
 
     graph = build_graph(settings, console)
-    initial_state = {"assignment_index": 0, "summaries": [], "errors": []}
+    initial_state = {
+        "assignment_index": 0,
+        "summaries": [],
+        "errors": [],
+        "messages": [],
+        "todos": [],
+        "files": {},
+        "ui_events": [],
+        "assignment_stats": {},
+        "ui_assignments": {},
+    }
     final_state = await graph.ainvoke(initial_state, config={"recursion_limit": 250})
     _print_summary(final_state)
 

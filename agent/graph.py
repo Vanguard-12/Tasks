@@ -7,6 +7,7 @@ from rich.console import Console
 
 from agent.api.journal import JournalClient
 from agent.config import Settings
+from agent.deep_ui import append_ui_event
 from agent.llm import RuntimeLLM
 from agent.nodes.analyze import analyze_assignment_node, plan_code_changes_node
 from agent.nodes.assignments import (
@@ -26,6 +27,21 @@ from agent.tools.repo_fs import RepoFS
 from agent.ui import print_node_result, print_node_start
 
 
+def normalize_initial_state(state: AgentState) -> AgentState:
+    return {
+        **state,
+        "assignment_index": state.get("assignment_index", 0),
+        "summaries": state.get("summaries", []),
+        "errors": state.get("errors", []),
+        "messages": state.get("messages", []),
+        "todos": state.get("todos", []),
+        "files": state.get("files", {}),
+        "ui_events": state.get("ui_events", []),
+        "assignment_stats": state.get("assignment_stats", {}),
+        "ui_assignments": state.get("ui_assignments", {}),
+    }
+
+
 def build_graph(settings: Settings, console: Console):
     prompt_dir = Path("prompts").resolve()
     client = JournalClient(
@@ -40,10 +56,12 @@ def build_graph(settings: Settings, console: Console):
     async def mark(name: str, coro):
         print_node_start(console, name)
         result = await coro
+        result = append_ui_event(result, name)
         print_node_result(console, name, result, settings)
         return result
 
     async def load_api_schema(state: AgentState) -> AgentState:
+        state = normalize_initial_state(state)
         return await mark("load_api_schema", load_api_schema_node(state, settings))
 
     async def fetch_tasks(state: AgentState) -> AgentState:

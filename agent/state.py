@@ -7,6 +7,12 @@ class AgentState(TypedDict, total=False):
     swagger_source: str
     swagger: dict[str, Any]
     api_base_url: str
+    messages: list[dict[str, Any]]
+    todos: list[dict[str, Any]]
+    files: dict[str, str]
+    ui_events: list[dict[str, Any]]
+    assignment_stats: dict[str, int]
+    ui_assignments: dict[str, dict[str, Any]]
 
     tasks: list[dict[str, Any]]
     submissions: list[dict[str, Any]]
@@ -35,6 +41,7 @@ class AgentState(TypedDict, total=False):
     replacement_commit: bool
     repo_url: str
     local_report_path: str
+    submission_content: str
 
     node: str
     errors: list[str]
