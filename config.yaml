@@ -1,0 +1,10 @@
+qdrant:
+  host: "localhost"
+  port: 6333
+  collection_name: "knowledge_base"
+
+ollama:
+  host: "http://localhost:11434"
+
+embedding_model: "nomic-embed-text"
+llm_model: "llama3"
