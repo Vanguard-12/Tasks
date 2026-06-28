@@ -1,0 +1,3 @@
+LangGraph is a framework for building stateful, multi-step AI applications.
+RAG systems combine retrieval from a local knowledge base with language model generation.
+Questions about local notes and project documents should use ChromaDB retrieval.

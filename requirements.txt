@@ -1,0 +1,9 @@
+langchain
+langchain-chroma
+langchain-tavily
+langchain-ollama
+langchain-text-splitters
+tavily-python
+chromadb
+ollama
+python-dotenv
